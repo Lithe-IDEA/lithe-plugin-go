@@ -1,6 +1,6 @@
 # Go Support for Lithe
 
-为 [Lithe](https://github.com/Lithe-IDEA/Lithe-IDEA) 提供 Go 代码智能、运行 Go 文件和 `go test`。
+为 [Lithe](https://github.com/1lck/Lithe-IDEA) 提供 Go 代码智能、运行 Go 文件和 `go test`。
 这是一个通过 [Lithe Store](https://github.com/Lithe-IDEA/Lithe-store) 分发的**社区插件**；
 它由原先的官方插件 `dev.lithe.plugin.go-support` 迁移而来，功能声明保持不变。
 
