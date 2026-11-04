@@ -45,6 +45,17 @@ node scripts/package.mjs
 
 输出 `dist/go-support-<版本>-darwin.zip`（同时适用 Apple Silicon 与 Intel Mac）和它的 SHA-256。
 
+## 诊断日志
+
+在启用结构化日志 v2 的 Lithe macOS preview 中，宿主按语言服务身份将 gopls 的生命周期、
+`window/logMessage` 和有界 stderr 诊断送入当前会话的 `lsp/go` 通道。
+插件通过现有 stdio 启动声明复用这条链路，不额外创建日志文件或后台进程。
+`go run` 与 `go test` 的程序输出仍属于运行/测试控制台，不复制进诊断日志。
+
+排障时使用 Lithe 的独立日志窗口和诊断导出；需要更多语言服务证据时临时启用详细诊断。
+不要添加 gopls 的 RPC dump、源码、环境变量或完整命令行作为日志。Windows 的日志实现仍为 v1；
+本文没有声明 Windows 已完成 v2 验收。
+
 ## 发布新版本
 
 1. 修改 `io.github.lithe-idea.go-support/plugin.json` 的 `version`，合入 `main`。
