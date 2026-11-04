@@ -52,6 +52,15 @@ node scripts/package.mjs
 插件通过现有 stdio 启动声明复用这条链路，不额外创建日志文件或后台进程。
 `go run` 与 `go test` 的程序输出仍属于运行/测试控制台，不复制进诊断日志。
 
+gopls 由插件声明、宿主执行，插件没有自己的进程发送 `lithe/log`。宿主因此替插件把每次启动尝试
+记成与 SDK 插件同一组的操作事实，写入 `plugins/io.github.lithe-idea.go-support/host` 通道，
+操作名为 `languageServer/start`：`initialize` 成功记 `plugins.operation.finished`（INFO，含耗时）；
+失败记 `plugins.operation.failed`（ERROR），失败码只取自启动阶段——`host.executableUnavailable`
+（无法解析 gopls 启动命令）、`host.launchFailed`（进程拉起失败）、`host.exitedEarly`（就绪前退出）、
+`host.initializeFailed`（初始化握手失败）、`host.timedOut`（初始化超时）。取消、停止和被新启动取代的
+尝试不记录；事实不含 gopls 输出、路径或命令行。插件不需要任何日志代码，宿主实现见
+https://github.com/1lck/Lithe-IDEA/pull/1720。
+
 排障时使用 Lithe 的独立日志窗口和诊断导出；需要更多语言服务证据时临时启用详细诊断。
 不要添加 gopls 的 RPC dump、源码、环境变量或完整命令行作为日志。Windows 的日志实现仍为 v1；
 本文没有声明 Windows 已完成 v2 验收。
