@@ -1,25 +1,131 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "0.1.0",
-  "pluginAPIVersion": 1,
+  "version": "0.0.1",
+  "pluginAPIVersion": 0,
+  "requires": {
+    "buildSystems": 0,
+    "languageServers": 0,
+    "languages": 0,
+    "settings": 0
+  },
   "vendor": {
     "id": "io.github.lithe-idea",
     "displayName": "Lithe Community",
     "signatureRequirement": "none"
   },
-  "permissions": ["languageServer.launch", "process.run", "process.test"],
-  "activationEvents": ["onLanguage:go", "onRun:go", "onTest:go"],
+  "permissions": [
+    "languageServer.launch",
+    "process.build"
+  ],
+  "activationEvents": [
+    "onBuildSystem:go",
+    "onLanguage:go"
+  ],
+  "settings": [
+    {
+      "id": "goExecutable",
+      "type": "file",
+      "title": "Go executable",
+      "description": "The go program used to read the module and to build, vet, test and run it. Leave empty to use go from PATH.",
+      "default": "",
+      "placeholder": "Automatic: go on PATH",
+      "effect": "reload",
+      "page": {
+        "buildSystemID": "go"
+      },
+      "section": "Go toolchain"
+    },
+    {
+      "id": "staticcheck",
+      "type": "boolean",
+      "title": "Staticcheck analyses",
+      "description": "Report staticcheck's additional checks as diagnostics. Uses more CPU and memory on large modules.",
+      "default": false,
+      "effect": "immediate",
+      "page": {
+        "languageID": "go"
+      },
+      "section": "gopls"
+    },
+    {
+      "id": "gofumpt",
+      "type": "boolean",
+      "title": "Format with gofumpt",
+      "description": "Apply gofumpt's stricter rules when formatting Go files.",
+      "default": false,
+      "effect": "immediate",
+      "page": {
+        "languageID": "go"
+      },
+      "section": "gopls"
+    },
+    {
+      "id": "usePlaceholders",
+      "type": "boolean",
+      "title": "Parameter placeholders in completion",
+      "description": "Insert placeholders for a function's parameters when completing a call.",
+      "default": false,
+      "effect": "immediate",
+      "page": {
+        "languageID": "go"
+      },
+      "section": "gopls"
+    },
+    {
+      "id": "hoverKind",
+      "type": "enum",
+      "title": "Hover documentation",
+      "description": "How much documentation a hover shows.",
+      "default": "FullDocumentation",
+      "effect": "immediate",
+      "page": {
+        "languageID": "go"
+      },
+      "section": "gopls",
+      "options": [
+        {
+          "value": "FullDocumentation",
+          "title": "Full documentation"
+        },
+        {
+          "value": "SynopsisDocumentation",
+          "title": "First sentence"
+        },
+        {
+          "value": "SingleLine",
+          "title": "One line"
+        },
+        {
+          "value": "NoDocumentation",
+          "title": "Signature only"
+        }
+      ]
+    }
+  ],
   "languages": [
     {
       "id": "go",
       "displayName": "Go",
-      "fileExtensions": ["go"],
-      "projectFileNames": ["go.mod", "go.work"],
+      "fileExtensions": [
+        "go"
+      ],
+      "projectFileNames": [
+        "go.mod",
+        "go.work"
+      ],
       "dependencies": {
-        "managementFileNames": ["go.mod", "go.sum", "go.work", "go.work.sum", "vendor/modules.txt"],
-        "projectDependencyPaths": ["vendor"]
+        "managementFileNames": [
+          "go.mod",
+          "go.sum",
+          "go.work",
+          "go.work.sum",
+          "vendor/modules.txt"
+        ],
+        "projectDependencyPaths": [
+          "vendor"
+        ]
       }
     }
   ],
@@ -29,34 +135,259 @@
       "languageIdentifier": "go",
       "launch": {
         "kind": "systemCommand",
-        "commands": ["gopls"]
+        "commands": [
+          "gopls"
+        ]
       },
       "arguments": [],
-      "validationArguments": ["version"],
-      "runtimeDependencies": [{ "tool": "go" }]
+      "validationArguments": [
+        "version"
+      ],
+      "workspaceConfiguration": {
+        "gopls": {
+          "staticcheck": "${setting:staticcheck}",
+          "gofumpt": "${setting:gofumpt}",
+          "usePlaceholders": "${setting:usePlaceholders}",
+          "hoverKind": "${setting:hoverKind}"
+        }
+      }
     }
   ],
-  "executionProviders": [
+  "buildSystems": [
     {
-      "languageID": "go",
-      "run": {
-        "executable": { "toolchain": "project-go" },
-        "arguments": ["run", "${file}", "${userArguments}"]
+      "id": "go",
+      "displayName": "Go Modules",
+      "detection": {
+        "markers": [
+          "go.mod"
+        ]
       },
+      "invocation": {
+        "executables": [
+          {
+            "id": "selected",
+            "kind": "setting",
+            "settingID": "goExecutable"
+          },
+          {
+            "id": "path",
+            "kind": "runtime",
+            "runtime": "go"
+          }
+        ],
+        "runtimeDependencies": [
+          {
+            "id": "go",
+            "minimumVersion": "1.21"
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "tags",
+          "displayName": "Build Tags",
+          "kind": "text",
+          "arguments": [
+            "-tags",
+            "${value}"
+          ]
+        },
+        {
+          "id": "race",
+          "displayName": "Race Detector",
+          "kind": "boolean",
+          "arguments": [
+            "-race"
+          ]
+        }
+      ],
+      "model": {
+        "source": "command",
+        "arguments": [
+          "list",
+          "-json",
+          "./..."
+        ],
+        "decoder": "jsonStream",
+        "executesProjectCode": false,
+        "mayUseNetwork": true,
+        "map": {
+          "projects": [
+            {
+              "each": "/0/Module",
+              "name": "/Path",
+              "path": "/Dir",
+              "properties": {
+                "goVersion": "/GoVersion"
+              },
+              "targets": [
+                {
+                  "each": "$/*",
+                  "where": [
+                    {
+                      "pointer": "/Name",
+                      "equals": "main"
+                    }
+                  ],
+                  "name": "/ImportPath",
+                  "path": "/Dir",
+                  "tags": [
+                    "application"
+                  ],
+                  "properties": {
+                    "short": {
+                      "from": "/ImportPath",
+                      "transform": "lastSegment"
+                    }
+                  }
+                },
+                {
+                  "each": "$/*",
+                  "where": [
+                    {
+                      "pointer": "/TestGoFiles",
+                      "exists": true
+                    }
+                  ],
+                  "name": "/ImportPath",
+                  "path": "/Dir",
+                  "tags": [
+                    "test"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "tasks": [
+        {
+          "id": "build",
+          "displayName": "Build",
+          "group": "build",
+          "scopes": [
+            "project"
+          ],
+          "arguments": [
+            "build",
+            "${optionArguments}",
+            "./..."
+          ]
+        },
+        {
+          "id": "vet",
+          "displayName": "Vet",
+          "group": "verification",
+          "scopes": [
+            "project",
+            "target"
+          ],
+          "arguments": [
+            "vet",
+            "${optionArguments}",
+            {
+              "value": "./...",
+              "when": "noTargetSelected"
+            },
+            {
+              "value": "${target.name}",
+              "when": "targetSelected"
+            }
+          ]
+        }
+      ],
+      "run": [
+        {
+          "id": "main",
+          "fromTargets": {
+            "tags": [
+              "application"
+            ]
+          },
+          "name": "${target.property:short}",
+          "arguments": [
+            "run",
+            "${optionArguments}",
+            "${target.name}"
+          ]
+        }
+      ],
       "test": {
-        "frameworkID": "go",
-        "workspaceLabel": "All Go Tests",
-        "projectMarkers": ["go.mod", "go.work"],
-        "testFilePatterns": ["*_test.go"],
-        "executable": { "toolchain": "project-go" },
-        "workspaceArguments": ["test", "./..."],
-        "fileArguments": ["test", "${fileDirectory}"],
-        "testCaseArguments": [
+        "scopes": [
+          "project",
+          "target"
+        ],
+        "filters": [
+          "case"
+        ],
+        "arguments": [
           "test",
-          { "value": "${fileDirectory}", "when": "fileSelected" },
-          { "value": "./...", "when": "noFileSelected" },
-          "-run",
-          "^${testName:regex}$"
+          "${optionArguments}",
+          {
+            "value": "./...",
+            "when": "noTargetSelected"
+          },
+          {
+            "value": "${target.name}",
+            "when": "targetSelected"
+          },
+          {
+            "value": "-run",
+            "when": "caseSelected"
+          },
+          {
+            "value": "^${test.case:regex}$",
+            "when": "caseSelected"
+          }
+        ]
+      },
+      "diagnostics": {
+        "decoder": "lineMatcher",
+        "patterns": [
+          {
+            "regex": "^(\\S+\\.go):(\\d+):(?:(\\d+):)? (.+)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "message": 4,
+            "defaultSeverity": "error"
+          }
+        ]
+      },
+      "dependencies": {
+        "source": "command",
+        "scopes": [
+          "project"
+        ],
+        "arguments": [
+          "list",
+          "-m",
+          "-json",
+          "all"
+        ],
+        "decoder": "jsonStream",
+        "executesProjectCode": false,
+        "mayUseNetwork": true,
+        "map": {
+          "each": "/*",
+          "where": [
+            {
+              "pointer": "/Main",
+              "exists": false
+            }
+          ],
+          "name": "/Path",
+          "version": "/Version",
+          "properties": {
+            "indirect": "/Indirect"
+          }
+        }
+      },
+      "sync": {
+        "watch": [
+          "go.mod",
+          "go.sum",
+          "go.work"
         ]
       }
     }
