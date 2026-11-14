@@ -104,6 +104,30 @@ node scripts/package.mjs
 [构建工具接入指南](https://github.com/Lithe-IDEA/Lithe-core-rust/blob/main/shared/plugins/guides/build-tool-integration.md)
 和[语言服务器插件生命周期](https://github.com/Lithe-IDEA/Lithe-core-rust/blob/main/shared/plugins/guides/lsp-plugin-lifecycle.md)。
 
+## 宿主端到端测试
+
+`e2e/host/` 里的测试通过 Lithe 桌面端自己的测试工具（宿主的 `desktop/internal/workbench` 包）安装真实插件包，
+像用户一样操作构建窗口和编辑器。这些测试原来放在 Lithe 主仓库，按“宿主不依赖插件”的要求
+（[1lck/Lithe-IDEA#1915](https://github.com/1lck/Lithe-IDEA/pull/1915)）移到这里：主仓库不读取本仓库，
+`e2e/host/lithe-host.json` 记录测试最后一次通过时的宿主版本。
+
+需要 Node.js 22+、Go、Rust 工具链（构建宿主固定的 Rust Core）、`git`，以及测试要用的 `go` 和 `gopls`：
+
+```bash
+node scripts/package.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-0.0.1-darwin.zip" node scripts/e2e-host.mjs
+```
+
+插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
+复制 `e2e/host/desktop/` 下的测试，再在那里运行宿主的 `scripts/desktop/desktop-go.sh test`；第一次运行会克隆并构建
+Rust Core，`LITHE_CORE_RUST_DIR` 可以指向本地的 Core 检出。`--ref <分支或 commit>` 换一个宿主版本试跑，
+`--run <正则>` 只跑部分测试。测试用的是宿主内部的测试工具，升级 `lithe-host.json` 的 `revision` 时可能要同步修改测试。
+
+## 功能矩阵
+
+插件各项能力在 macOS 和 Windows 上的实现与验收状态见 [docs/feature-matrix.md](docs/feature-matrix.md)。
+Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在同一个 PR 里更新这一页。
+
 ## 发布新版本
 
 1. 按语义化版本修改 `io.github.lithe-idea.go-support/plugin.json` 的 `version`：只修 Bug 升修订号，
