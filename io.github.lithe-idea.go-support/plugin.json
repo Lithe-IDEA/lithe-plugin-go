@@ -6,6 +6,7 @@
   "pluginAPIVersion": 0,
   "requires": {
     "buildSystems": 0,
+    "commandInstallers": 0,
     "debugAdapters": 0,
     "languageServers": 0,
     "languages": 0,
@@ -13,12 +14,16 @@
     "settings": 0,
     "toolDefinitions": 0
   },
+  "requiresTools": [
+    "go"
+  ],
   "vendor": {
     "id": "io.github.lithe-idea",
     "displayName": "Lithe Community",
     "signatureRequirement": "none"
   },
   "permissions": [
+    "commands.install",
     "debug.launch",
     "languageServer.launch",
     "process.build",
@@ -752,6 +757,84 @@
           }
         }
       ]
+    }
+  ],
+  "commandInstallers": [
+    {
+      "id": "gopls",
+      "commands": [
+        "gopls"
+      ],
+      "tool": "go",
+      "minimumVersion": "1.21",
+      "arguments": [
+        "install",
+        "golang.org/x/tools/gopls@latest"
+      ],
+      "mayUseNetwork": true,
+      "targets": {
+        "managed": {
+          "environment": {
+            "GOBIN": "${installDirectory}"
+          }
+        },
+        "toolDefault": {
+          "directory": [
+            {
+              "arguments": [
+                "env",
+                "GOBIN"
+              ]
+            },
+            {
+              "arguments": [
+                "env",
+                "GOPATH"
+              ],
+              "pathList": true,
+              "append": "bin"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dlv",
+      "commands": [
+        "dlv"
+      ],
+      "tool": "go",
+      "minimumVersion": "1.21",
+      "arguments": [
+        "install",
+        "github.com/go-delve/delve/cmd/dlv@latest"
+      ],
+      "mayUseNetwork": true,
+      "targets": {
+        "managed": {
+          "environment": {
+            "GOBIN": "${installDirectory}"
+          }
+        },
+        "toolDefault": {
+          "directory": [
+            {
+              "arguments": [
+                "env",
+                "GOBIN"
+              ]
+            },
+            {
+              "arguments": [
+                "env",
+                "GOPATH"
+              ],
+              "pathList": true,
+              "append": "bin"
+            }
+          ]
+        }
+      }
     }
   ]
 }
