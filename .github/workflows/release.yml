@@ -33,7 +33,7 @@ jobs:
           # v1.0.0 needs the host's tcpAnnounced debug transport and
           # commandInstallers (1lck/Lithe-IDEA#1954, #1964, #1971), and a Core
           # with targetBindings.adapterArguments and cwd from target.directory
-          # (Lithe-core-rust#55, pinned by 1lck/Lithe-IDEA#1975), which no
+          # (Lithe-core-rust#55 and #56, pinned by 1lck/Lithe-IDEA#1975), which no
           # desktop release has yet.
           PRERELEASE_TAGS: v0.0.1 v1.0.0
         run: |
