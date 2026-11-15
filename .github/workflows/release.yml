@@ -21,10 +21,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Build archive
+      - name: Build archives
         run: |
           set -o pipefail
           node scripts/package.mjs --expect-tag "$GITHUB_REF_NAME" | tee "$RUNNER_TEMP/checksums.txt"
+      - name: Verify release archives
+        run: node --test --test-timeout=60000 scripts/package/*.test.mjs
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,7 +37,8 @@ jobs:
           # with targetBindings.adapterArguments and cwd from target.directory
           # (Lithe-core-rust#55 and #56, pinned by 1lck/Lithe-IDEA#1975), which no
           # desktop release has yet.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0
+          # v1.0.1 adds the Windows archive on top of 1.0.0 and needs the same host.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.0.1
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do

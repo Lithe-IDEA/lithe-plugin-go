@@ -135,11 +135,14 @@ go install github.com/go-delve/delve/cmd/dlv@latest
 
 ## 安装
 
-1. 从 [Releases](https://github.com/Lithe-IDEA/lithe-plugin-go/releases) 下载 `go-support-<版本>-darwin.zip`。
+1. 从 [Releases](https://github.com/Lithe-IDEA/lithe-plugin-go/releases) 下载对应平台的包：macOS 用 `go-support-<版本>-darwin.zip`，
+   Windows 用 `go-support-<版本>-windows.zip`。
 2. 在 Lithe 中打开 **设置 → 插件**，点击页面标题栏右侧的 **从文件安装…**，选中这个 zip，核对 SHA-256 和权限后确认。
 3. 打开含 `go.mod` 的项目。构建窗口会出现 Go Modules，打开 `.go` 文件时启动 gopls。
 
-一个包同时支持 Apple Silicon 和 Intel Mac。
+darwin 包同时支持 Apple Silicon 和 Intel Mac，windows 包同时支持 Windows ARM64 和 x64。两个包字节相同：
+插件只声明 Lithe 怎样启动用户自己的 go、gopls 和 dlv，Windows 上从 GOROOT 解析 `bin/go.exe`，
+`gopls` 和 `dlv` 按 PATHEXT 找到 `.exe`。
 
 ## 工作方式
 
@@ -168,14 +171,24 @@ Delve 也由 Lithe 启动：每次调试的适配器启动结果（解析、启�
 
 ## 本地打包
 
-需要 Node.js 22+ 和 `zip`：
+需要 Node.js 22+ 和 `zip`（在 macOS 或 Linux 上打包）：
 
 ```bash
 node scripts/package.mjs
 ```
 
-输出 `dist/go-support-<版本>-darwin.zip` 和它的 SHA-256。本地开发时，用 **设置 → 插件 → 从文件安装…**
+输出 `dist/go-support-<版本>-darwin.zip`、字节相同的 `dist/go-support-<版本>-windows.zip` 和它们的 SHA-256。本地开发时，用 **设置 → 插件 → 从文件安装…**
 选择这个 zip 安装。
+
+```bash
+node --test scripts/package/*.test.mjs   # 核对 Windows 包
+node scripts/test.mjs                     # 用真实的 go、gopls、dlv 跑清单里的命令
+```
+
+`scripts/test.mjs` 在带空格的临时目录里按 Go 项目模板生成模块，逐条运行版本探测、模型、依赖、构建、vet、
+过滤后的测试和 `go env` 目录，再把 gopls 和 dlv 托管安装到独立的 `GOBIN`，检查 gopls 的校验参数和
+`dlv dap` 的端点公告。`LITHE_TEST_PLUGIN_DIR` 指向解压后的发布包时测发布包，`LITHE_TEST_INSTALL=0` 跳过需要联网的安装。
+CI 在 macOS、Windows x64 和 Windows ARM64 上跑这个脚本，Windows 上测的是解压到带空格路径的 windows 包。
 
 `plugin.json` 的完整格式见 Rust Core 仓库里的
 [插件契约](https://github.com/Lithe-IDEA/Lithe-core-rust/blob/main/shared/plugins/contract/v1/README.md)、
@@ -193,7 +206,7 @@ node scripts/package.mjs
 
 ```bash
 node scripts/package.mjs
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.0.0-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.0.1-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -219,7 +232,7 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0`。
+   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 和 `v1.0.1`。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 
