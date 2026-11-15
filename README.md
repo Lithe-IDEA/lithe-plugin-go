@@ -11,12 +11,13 @@
 > debugging through your own Delve, and a Go module entry in New Project.
 > The plugin is a `plugin.json` and a few project templates, with no executables and no backend process.
 
-> **预发布**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
+> **兼容性**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
 > （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。1.0.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
 > （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），`go` 工具定义需要固定了 Rust Core
 > 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)），
 > 在插件详情里安装 gopls 和 dlv 需要固定了 Core c550c2b 或更新版本、支持 `commandInstallers` 的桌面端
-> （[1lck/Lithe-IDEA#1971](https://github.com/1lck/Lithe-IDEA/pull/1971)）。在包含它们的桌面端版本发布前，这个版本只作为预发布提供。
+> （[1lck/Lithe-IDEA#1971](https://github.com/1lck/Lithe-IDEA/pull/1971)）。1.0.1 起作为正式版本发布并收录到 Lithe Store；
+> 没有这些能力的桌面端会从 Store 装到 0.0.1。
 
 ## 功能
 
@@ -232,7 +233,7 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 和 `v1.0.1`。
+   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；`v1.0.1` 起作为正式版本发布。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 
