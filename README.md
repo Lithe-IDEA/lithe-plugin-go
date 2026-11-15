@@ -14,7 +14,7 @@
 > **预发布**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
 > （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。0.1.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
 > （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），`go` 工具定义需要固定了 Rust Core
-> 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1960](https://github.com/1lck/Lithe-IDEA/pull/1960)）。在包含它们的桌面端版本发布前，这个版本只作为预发布提供。
+> 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)）。在包含它们的桌面端版本发布前，这个版本只作为预发布提供。
 
 ## 功能
 

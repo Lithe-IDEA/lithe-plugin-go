@@ -134,11 +134,11 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 - `e2e/host/desktop/internal/projectgen/go_integration_test.go`：经 Core 的表单、生成计划和宿主执行器的集成测试。
 
 **依赖的宿主能力**：`projectGenerators` 的 `tool` 字段和创建后的项目固定，`toolDefinitions` 的发现和解析；
-以子命令开头的版本探针 `go version` 需要 Rust Core 6477e9a（Lithe-core-rust#52，宿主 [1lck/Lithe-IDEA#1960](https://github.com/1lck/Lithe-IDEA/pull/1960)）。
+以子命令开头的版本探针 `go version` 需要 Rust Core 6477e9a（Lithe-core-rust#52，宿主 [1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)）。
 
 **限制**：字段名称和说明目前只有英文，插件语言文件还不覆盖新建项目。
 
-**最近验证**：2026-11-15，macOS（Apple Silicon），插件源目录里的清单和模板，宿主 `fce5d46d3`（1lck/Lithe-IDEA#1960 的分支提交，
+**最近验证**：2026-11-15，macOS（Apple Silicon），插件源目录里的清单和模板，宿主 `b03dbf0c0`（1lck/Lithe-IDEA#1964 的分支提交：preview 1fc1e8b05 加上
 Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/projectgen` 的 `^TestGoPlugin`，通过五个集成测试，经 Core 的表单、
 生成计划、宿主执行器和工具链解析：
 
