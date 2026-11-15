@@ -19,6 +19,14 @@ jobs:
           node-version: 22
       - name: Check manifest and build the archive
         run: node scripts/package.mjs
+      - name: Verify release archives
+        run: node --test --test-timeout=60000 scripts/package/*.test.mjs
+      - name: Hand the Windows archive to the command jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-support-windows
+          path: dist/go-support-*-windows.zip
+          if-no-files-found: error
       - name: Validate against Lithe Store rules
         run: |
           git clone --depth 1 https://github.com/Lithe-IDEA/Lithe-store "$RUNNER_TEMP/store"
@@ -35,3 +43,41 @@ jobs:
             }
             process.exit(failed ? 1 : 0);
           "
+
+  # The declared commands with the real go, gopls and dlv, on each platform the
+  # packages serve. Windows runs the Windows archive, unpacked under a path with
+  # a space the way Lithe installs it.
+  commands:
+    needs: package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - uses: actions/download-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: go-support-windows
+          path: ${{ runner.temp }}/archive
+      - name: Unpack the Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem "$env:RUNNER_TEMP\archive\go-support-*-windows.zip" | Select-Object -First 1
+          $plugins = Join-Path $env:RUNNER_TEMP "Lithe Plugins"
+          Expand-Archive -Path $archive.FullName -DestinationPath $plugins
+          "LITHE_TEST_PLUGIN_DIR=$plugins\io.github.lithe-idea.go-support" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Run the declared commands with go, gopls and dlv
+        run: |
+          go version
+          node scripts/test.mjs

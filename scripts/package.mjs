@@ -4,13 +4,16 @@
 //
 // Go Support only declares how Lithe launches the user's own gopls and go, so
 // the package is architecture-neutral: one archive serves Apple Silicon and
-// Intel Macs, and nothing is downloaded at build or install time.
+// Intel Macs, and the same bytes are copied as -windows.zip for Windows ARM64
+// and x64 (plugin.json declares bin/go.exe and resolves gopls and dlv through
+// PATHEXT). Nothing is downloaded at build or install time. Packaging needs
+// POSIX zip, so it runs on macOS or Linux.
 //
 // Usage: node scripts/package.mjs [--expect-tag <tag>]
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 const PACKAGE_DIR = "io.github.lithe-idea.go-support";
@@ -42,3 +45,6 @@ const asset = resolve("dist", `${ASSET_PREFIX}-${manifest.version}-${PLATFORM}.z
 execFileSync("zip", ["-qrXy", asset, PACKAGE_DIR, "-x", "*.DS_Store"]);
 const sha256 = createHash("sha256").update(readFileSync(asset)).digest("hex");
 console.log(`dist/${ASSET_PREFIX}-${manifest.version}-${PLATFORM}.zip ${sha256}`);
+const windowsAsset = resolve("dist", `${ASSET_PREFIX}-${manifest.version}-windows.zip`);
+copyFileSync(asset, windowsAsset);
+console.log(`dist/${ASSET_PREFIX}-${manifest.version}-windows.zip ${sha256}`);

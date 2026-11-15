@@ -2,7 +2,7 @@
   "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "pluginAPIVersion": 0,
   "requires": {
     "buildSystems": 0,
