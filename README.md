@@ -2,15 +2,19 @@
 
 为 [Lithe](https://github.com/1lck/Lithe-IDEA) 提供 Go 支持：用你电脑上的 `gopls` 提供代码智能，
 用声明式构建系统接口（`buildSystems`）识别 Go 模块，在构建窗口里列出包，运行 `go build`、`go vet`、
-`go test` 和 `go run`，查看模块依赖。
-这是一个**社区插件**，按插件契约 v0 编写。插件只有一份 `plugin.json`，不附带任何可执行文件，也没有后端进程。
+`go test` 和 `go run`，查看模块依赖；用你电脑上的 Delve（`dlv`）调试，在「新建项目」里创建 Go 模块。
+这是一个**社区插件**，按插件契约 v0 编写。插件只有一份 `plugin.json` 和几份项目模板，不附带任何可执行文件，
+也没有后端进程。
 
-> English: Go support for Lithe — code intelligence through your own `gopls`, and the Go Modules build system
-> (package model, build, vet, test, run and the module list) through the declarative `buildSystems` contract.
-> The plugin is a single `plugin.json` with no executables and no backend process.
+> English: Go support for Lithe — code intelligence through your own `gopls`, the Go Modules build system
+> (package model, build, vet, test, run and the module list) through the declarative `buildSystems` contract,
+> debugging through your own Delve, and a Go module entry in New Project.
+> The plugin is a `plugin.json` and a few project templates, with no executables and no backend process.
 
 > **预发布**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
-> （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。
+> （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。0.1.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
+> （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），在包含它的桌面端版本发布前，
+> 这个版本只作为预发布提供。
 
 ## 功能
 
@@ -24,6 +28,8 @@
 | 诊断 | 把 `文件:行:列: 消息` 形式的编译输出显示为问题 |
 | 依赖 | `go list -m -json all` 列出模块依赖（含版本和是否间接依赖） |
 | 同步 | `go.mod`、`go.sum`、`go.work` 变化后重新读取模块 |
+| 调试 | 「调试」窗口里选 Go (Delve)，调试当前打开的 `.go` 文件所在的包：断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台 |
+| 新建项目 | 「新建项目」里的 Go：生成 `go.mod`、`.gitignore`，可选生成示例 `main.go`；模块路径默认是小写的项目名 |
 
 ## 设置和构建选项
 
@@ -49,22 +55,50 @@
 
 选项会加到构建、检查、测试和运行的命令里。
 
+## 调试
+
+打开「调试」窗口，适配器选 **Go (Delve)**，打开要调试的 `.go` 文件，在行号旁设好断点后点「开始」。
+
+- 调试的是当前文件所在的包：Delve 先构建这个包，再在断点处停下。所以要调试 `cmd/server` 的程序，
+  打开 `cmd/server` 里的任意文件即可。
+- 程序的工作目录是项目根目录。
+- 程序结束后会话自动结束，程序的输出留在调试控制台里。
+- Delve 在项目根目录生成名为 `__debug_bin…` 的临时程序，会话结束时自己删除；新建项目生成的 `.gitignore`
+  已经忽略它。
+- 目前只支持启动调试（launch），不支持附加到运行中的进程，也不支持调试测试。
+
+## 新建项目
+
+「新建项目」对话框左侧有 **Go**。可以填写：
+
+| 字段 | 说明 |
+| --- | --- |
+| 添加示例代码 | 默认开启，生成打印 `Hello, Gopher!` 的 `main.go`，创建后打开它；关闭时只生成模块文件，创建后打开 `go.mod` |
+| 模块路径 | 写进 `go.mod` 的 `module` 行，别的代码用它导入本模块，例如 `example.com/hello` 或 `github.com/you/hello`。默认是小写的项目名；项目名里有空格时需要改掉 |
+| Go 版本（高级） | 写进 `go.mod` 的 `go` 行，表示模块至少需要的 Go 版本，默认 `1.21`；更新的 Go 也能构建 |
+
+`go.mod` 由模板直接写出，不运行 `go mod init`，所以创建项目不需要联网，也不依赖 `go` 的安装位置。
+这些字段目前只有英文名称：插件语言文件还不能翻译新建项目的字段。
+
 ## 依赖的程序
 
 | 程序 | 用途 | 查找方式 |
 | --- | --- | --- |
 | `go` 1.21 或更新版本 | 读取模块、构建、检查、测试、运行、依赖 | 插件设置 Go executable；留空时找 `PATH` 里的 `go` |
 | `gopls` | 代码智能 | `PATH` 里的 `gopls` |
+| `dlv`（Delve，需要有 `dlv dap` 命令，已用 1.27.2 验证） | 调试 | `PATH` 里的 `dlv`；Delve 构建程序时用 `PATH` 里的 `go` |
 
-安装插件时 Lithe 会列出这些程序和插件需要的权限（启动语言服务器、运行构建命令），确认后才会安装。
-没有这两个程序的话可以先安装：
+安装插件时 Lithe 会列出这些程序和插件需要的权限（启动语言服务器、运行构建命令、启动调试器、创建项目），
+确认后才会安装。没有这些程序的话可以先安装：
 
 ```bash
 brew install go
 go install golang.org/x/tools/gopls@latest
+go install github.com/go-delve/delve/cmd/dlv@latest
 ```
 
-`go install` 把 gopls 装在 `$(go env GOPATH)/bin`，这个目录需要在 Lithe 能看到的 `PATH` 里。
+`go install` 把 gopls 和 dlv 装在 `$(go env GOPATH)/bin`，这个目录需要在 Lithe 能看到的 `PATH` 里。
+不调试的话可以不装 dlv。
 
 ## 安装
 
@@ -80,13 +114,21 @@ go install golang.org/x/tools/gopls@latest
 - 运行入口由 Lithe 从模型里的 `main` 包生成：每个带 `application` 标签的包一条，名称是导入路径的最后一段。
 - gopls 由 Lithe 按 `languageServers` 的声明启动，插件设置通过 `workspaceConfiguration` 里的
   `${setting:<id>}` 传给它。
+- Delve 由 Lithe 按 `debugAdapters` 的声明启动为 `dlv dap`。Delve 在标准输出打印
+  `DAP server listening at: <地址>`，Lithe 读到这一行后连接这个本机地址（`tcpAnnounced` 传输）。
+  调试的包由当前文件所在目录决定（`target.directory` 绑定到 Delve 的 `program`）。
+- 新建项目由 `projectGenerators` 声明，Lithe 把 `templates/go/` 里的模板展开到新目录；
+  模板名以 `dot-` 开头的文件生成为点文件。
 - 插件目录在运行时保持只读。
 
 ## 诊断日志
 
 插件没有自己的进程，也不发送 `lithe/log`。gopls 由 Lithe 启动，它的启动结果、`window/logMessage`
 和有界的 stderr 由 Lithe 记进语言服务的日志；`go` 命令的输出显示在构建输出里，不复制进诊断日志。
-排障时使用 Lithe 的日志窗口和诊断导出，不要开启 gopls 的 RPC dump，也不要把源码、环境变量或完整命令行写进日志。
+Delve 也由 Lithe 启动：每次调试的适配器启动结果（解析、启动、超时、退出、initialize 失败或成功）由 Lithe
+记在插件的日志通道里；Delve 和被调试程序的输出显示在调试控制台里，不复制进诊断日志。
+排障时使用 Lithe 的日志窗口和诊断导出，不要开启 gopls 的 RPC dump 或 Delve 的 `--log`，
+也不要把源码、环境变量或完整命令行写进日志。
 
 ## 本地打包
 
@@ -111,11 +153,11 @@ node scripts/package.mjs
 （[1lck/Lithe-IDEA#1915](https://github.com/1lck/Lithe-IDEA/pull/1915)）移到这里：主仓库不读取本仓库，
 `e2e/host/lithe-host.json` 记录测试最后一次通过时的宿主版本。
 
-需要 Node.js 22+、Go、Rust 工具链（构建宿主固定的 Rust Core）、`git`，以及测试要用的 `go` 和 `gopls`：
+需要 Node.js 22+、Go、Rust 工具链（构建宿主固定的 Rust Core）、`git`，以及测试要用的 `go`、`gopls` 和 `dlv`：
 
 ```bash
 node scripts/package.mjs
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-0.0.1-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-0.1.0-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -135,12 +177,12 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 2. 推送同名标签：
 
    ```bash
-   git tag v0.0.1 && git push origin v0.0.1
+   git tag v0.1.0 && git push origin v0.1.0
    ```
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`。
+   目前是只能装进新版桌面端的 `v0.0.1`，以及调试依赖宿主 #1954 的 `v0.1.0`。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 

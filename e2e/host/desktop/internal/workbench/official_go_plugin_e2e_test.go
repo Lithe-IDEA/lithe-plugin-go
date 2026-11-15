@@ -151,6 +151,15 @@ func awaitBuildModel(t *testing.T, h *harness, p *project, buildSystemID string,
 	return instance
 }
 
+// runConsoleText is the console of the Run window's shown session, which holds the
+// output of the latest execution.
+func runConsoleText(p *project) string {
+	if run := p.activeRun(); run != nil {
+		return run.output.all()
+	}
+	return ""
+}
+
 // runBuildTaskToEnd runs one task of the selected instance and waits for it to end.
 func runBuildTaskToEnd(t *testing.T, h *harness, p *project, projectID, taskID string, limit time.Duration) string {
 	t.Helper()
@@ -159,7 +168,7 @@ func runBuildTaskToEnd(t *testing.T, h *harness, p *project, projectID, taskID s
 		t.Fatalf("start %s: %v", taskID, err)
 	}
 	awaitStateWithin(t, h, limit, "the "+taskID+" task", func() bool { return p.build.operation == nil })
-	output := strings.Join(p.build.output, "")
+	output := runConsoleText(p)
 	if p.build.status != h.app.text.Build.Succeeded {
 		t.Fatalf("%s did not succeed: status=%q output=%q", taskID, p.build.status, output)
 	}
@@ -180,7 +189,7 @@ func runTargetEntryToEnd(t *testing.T, h *harness, p *project, instance *buildIn
 		t.Fatalf("run %s did not start", entry.Name)
 	}
 	awaitStateWithin(t, h, limit, "the "+entry.Name+" run", func() bool { return p.build.operation == nil })
-	output := strings.Join(p.build.output, "")
+	output := runConsoleText(p)
 	if p.build.status != h.app.text.Build.Succeeded {
 		t.Fatalf("run %s did not succeed: status=%q output=%q", entry.Name, p.build.status, output)
 	}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Lithe-IDEA/Lithe-core-rust/main/shared/plugins/contract/v1/plugin-l10n.schema.json",
+  "settings": {
+    "goExecutable": {
+      "title": "Go 程序",
+      "description": "读取模块、构建、检查、测试和运行时使用的 go 程序。留空表示使用 PATH 中的 go。",
+      "placeholder": "自动：PATH 中的 go"
+    },
+    "staticcheck": {
+      "title": "Staticcheck 分析",
+      "description": "把 staticcheck 的额外检查结果报告为诊断。大模块上会占用更多 CPU 和内存。"
+    },
+    "gofumpt": {
+      "title": "使用 gofumpt 格式化",
+      "description": "格式化 Go 文件时使用 gofumpt 更严格的规则。"
+    },
+    "usePlaceholders": {
+      "title": "补全时填入参数占位符",
+      "description": "补全函数调用时为函数的参数插入占位符。"
+    },
+    "hoverKind": {
+      "title": "悬停文档",
+      "description": "悬停提示显示多少文档。",
+      "options": {
+        "FullDocumentation": "完整文档",
+        "SynopsisDocumentation": "第一句",
+        "SingleLine": "一行",
+        "NoDocumentation": "只显示签名"
+      }
+    }
+  },
+  "sections": {
+    "Go toolchain": "Go 工具链"
+  }
+}
