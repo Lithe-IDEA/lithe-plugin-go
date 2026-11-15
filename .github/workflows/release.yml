@@ -37,8 +37,9 @@ jobs:
           # with targetBindings.adapterArguments and cwd from target.directory
           # (Lithe-core-rust#55 and #56, pinned by 1lck/Lithe-IDEA#1975), which no
           # desktop release has yet.
-          # v1.0.1 adds the Windows archive on top of 1.0.0 and needs the same host.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.0.1
+          # v1.0.1 adds the Windows archive on top of 1.0.0 and needs the same host,
+          # but is published as a stable release so the Store tracker lists it.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do
