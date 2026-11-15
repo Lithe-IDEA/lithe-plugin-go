@@ -12,7 +12,7 @@
 > The plugin is a `plugin.json` and a few project templates, with no executables and no backend process.
 
 > **预发布**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
-> （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。0.1.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
+> （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。1.0.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
 > （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），`go` 工具定义需要固定了 Rust Core
 > 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)），
 > 在插件详情里安装 gopls 和 dlv 需要固定了 Core c550c2b 或更新版本、支持 `commandInstallers` 的桌面端
@@ -190,7 +190,7 @@ node scripts/package.mjs
 
 ```bash
 node scripts/package.mjs
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-0.1.0-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.0.0-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -206,16 +206,17 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 ## 发布新版本
 
 1. 按语义化版本修改 `io.github.lithe-idea.go-support/plugin.json` 的 `version`：只修 Bug 升修订号，
-   加功能升次版本号，有不兼容的变化升主版本号。合入 `main`。
+   加功能升次版本号，有不兼容的变化升主版本号。要求能装上一版的宿主没有的能力或 Core 版本，也算不兼容；
+   1.0.0 以下同样适用，0.y.z 有不兼容的变化时升到 1.0.0。合入 `main`。
 2. 推送同名标签：
 
    ```bash
-   git tag v0.1.0 && git push origin v0.1.0
+   git tag v1.0.0 && git push origin v1.0.0
    ```
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`，以及调试依赖宿主 #1954 的 `v0.1.0`。
+   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0`。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 

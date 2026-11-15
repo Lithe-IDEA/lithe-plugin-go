@@ -30,9 +30,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           # v0.0.1 follows plugin contract v0, which only the new desktop
           # client installs, and that client ships as desktop-v* pre-releases.
-          # v0.1.0's Delve adapter needs the host's tcpAnnounced transport,
-          # which no desktop release has yet.
-          PRERELEASE_TAGS: v0.0.1 v0.1.0
+          # v1.0.0 needs the host's tcpAnnounced debug transport and
+          # commandInstallers (1lck/Lithe-IDEA#1954, #1964, #1971), which no
+          # desktop release has yet.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do
