@@ -13,8 +13,8 @@
 
 > **预发布**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
 > （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。0.1.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
-> （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），在包含它的桌面端版本发布前，
-> 这个版本只作为预发布提供。
+> （[1lck/Lithe-IDEA#1954](https://github.com/1lck/Lithe-IDEA/pull/1954)），`go` 工具定义需要固定了 Rust Core
+> 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)）。在包含它们的桌面端版本发布前，这个版本只作为预发布提供。
 
 ## 功能
 
@@ -29,7 +29,8 @@
 | 依赖 | `go list -m -json all` 列出模块依赖（含版本和是否间接依赖） |
 | 同步 | `go.mod`、`go.sum`、`go.work` 变化后重新读取模块 |
 | 调试 | 「调试」窗口里选 Go (Delve)，调试当前打开的 `.go` 文件所在的包：断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台 |
-| 新建项目 | 「新建项目」里的 Go：生成 `go.mod`、`.gitignore`，可选生成示例 `main.go`；模块路径默认是小写的项目名 |
+| 新建项目 | 「新建项目」里的 Go：选择 GOROOT，生成 `go.mod`、`.gitignore`，可选生成示例 `main.go`；模块路径默认是小写的项目名，Go 版本默认是所选 Go 的版本 |
+| 工具链 | 在常见位置找到电脑上的 Go 安装；项目可以固定用其中一个构建和运行 |
 
 ## 设置和构建选项
 
@@ -37,7 +38,7 @@
 
 | 设置 | 生效方式 | 说明 |
 | --- | --- | --- |
-| Go executable | 重新读取模块 | 读取模块、构建、检查、测试和运行用的 `go`。留空时使用 `PATH` 里的 `go`。也显示在「构建、执行、部署 › Go Modules」页 |
+| Go executable | 重新读取模块 | 读取模块、构建、检查、测试和运行用的 `go`。留空时使用「工具链」选出的 Go（见下）。也显示在「构建、执行、部署 › Go Modules」页 |
 | Staticcheck analyses | 立即 | 让 gopls 额外报告 staticcheck 的检查结果；大模块上更耗 CPU 和内存 |
 | Format with gofumpt | 立即 | 格式化时使用 gofumpt 的更严格规则 |
 | Parameter placeholders in completion | 立即 | 补全函数调用时插入参数占位符 |
@@ -54,6 +55,20 @@
 | Race Detector | `-race` |
 
 选项会加到构建、检查、测试和运行的命令里。
+
+**工具链**（设置 →「构建、执行、部署」→「工具链」）：插件声明了 `go` 工具，Lithe 在下面这些位置查找 Go，
+用 `go version` 读出版本，列在这里：
+
+| 平台 | 位置 |
+| --- | --- |
+| macOS | `/usr/local/go`（官方安装包），Homebrew 的 `go` 和 `go@1.N`（`/opt/homebrew/Cellar`、`/usr/local/Cellar`） |
+| Linux | `/usr/local/go`，`/usr/lib/go`、`/usr/lib/go-1.N`，Linuxbrew |
+| Windows | `C:\Program Files\Go`，Scoop |
+| 所有平台 | `~/sdk/go*`（`golang.org/dl` 下载的版本），`~/go/go*` |
+
+没有设置 Go executable 时，构建、检查、测试和运行按顺序使用第一个可用的 Go：项目固定的 Go、全局默认的 Go、
+`GOROOT` 环境变量指向的 Go、`PATH` 里的 `go`、找到的最新安装；都没有时使用 `PATH` 里的 `go`。
+选中的 Go 的 `bin` 目录加到命令的 `PATH` 前面，`GOROOT` 设为它的安装目录。
 
 ## 调试
 
@@ -73,18 +88,20 @@
 
 | 字段 | 说明 |
 | --- | --- |
+| GOROOT | 项目构建和运行用的 Go，从「工具链」找到的安装里选，默认是版本最新的一个。创建后项目固定使用它（记在项目的 `.lithe/toolchains/local.json`），以后可以在「工具链」里修改。没有找到 Go 时留空，不影响创建 |
 | 添加示例代码 | 默认开启，生成打印 `Hello, Gopher!` 的 `main.go`，创建后打开它；关闭时只生成模块文件，创建后打开 `go.mod` |
 | 模块路径 | 写进 `go.mod` 的 `module` 行，别的代码用它导入本模块，例如 `example.com/hello` 或 `github.com/you/hello`。默认是小写的项目名；项目名里有空格时需要改掉 |
-| Go 版本（高级） | 写进 `go.mod` 的 `go` 行，表示模块至少需要的 Go 版本，默认 `1.21`；更新的 Go 也能构建 |
+| Go 版本（高级） | 写进 `go.mod` 的 `go` 行，表示模块至少需要的 Go 版本，默认是所选 GOROOT 的版本，换 GOROOT 时跟着变，手动改过后不再变；更新的 Go 也能构建。没有选 GOROOT 时需要手动填写，高级选项会自动展开 |
 
-`go.mod` 由模板直接写出，不运行 `go mod init`，所以创建项目不需要联网，也不依赖 `go` 的安装位置。
+`go.mod` 由模板直接写出，不运行 `go mod init`，所以创建项目不需要联网，也不需要先装好 `go`。
+GOROOT 只能选 Go 1.21 或更新的版本；选了更旧的版本时表单会提示，不能创建。
 这些字段目前只有英文名称：插件语言文件还不能翻译新建项目的字段。
 
 ## 依赖的程序
 
 | 程序 | 用途 | 查找方式 |
 | --- | --- | --- |
-| `go` 1.21 或更新版本 | 读取模块、构建、检查、测试、运行、依赖 | 插件设置 Go executable；留空时找 `PATH` 里的 `go` |
+| `go` 1.21 或更新版本 | 读取模块、构建、检查、测试、运行、依赖 | 插件设置 Go executable；留空时用「工具链」选出的 Go，最后找 `PATH` 里的 `go` |
 | `gopls` | 代码智能 | `PATH` 里的 `gopls` |
 | `dlv`（Delve，需要有 `dlv dap` 命令，已用 1.27.2 验证） | 调试 | `PATH` 里的 `dlv`；Delve 构建程序时用 `PATH` 里的 `go` |
 
@@ -117,8 +134,11 @@ go install github.com/go-delve/delve/cmd/dlv@latest
 - Delve 由 Lithe 按 `debugAdapters` 的声明启动为 `dlv dap`。Delve 在标准输出打印
   `DAP server listening at: <地址>`，Lithe 读到这一行后连接这个本机地址（`tcpAnnounced` 传输）。
   调试的包由当前文件所在目录决定（`target.directory` 绑定到 Delve 的 `program`）。
+- Go 的查找方式由 `toolDefinitions` 里的 `go` 声明：查找位置、`bin/go` 的位置、用 `go version` 读版本、
+  `GOROOT` 环境变量。构建系统的 `go` 先看 Go executable 设置，再交给这个工具定义解析。
 - 新建项目由 `projectGenerators` 声明，Lithe 把 `templates/go/` 里的模板展开到新目录；
-  模板名以 `dot-` 开头的文件生成为点文件。
+  模板名以 `dot-` 开头的文件生成为点文件。GOROOT 是 `tool` 类型的字段，Go 版本的默认值是
+  `${field.goroot.version}`；创建后 Lithe 把所选 GOROOT 记为项目固定（`pinAs: "project"`）。
 - 插件目录在运行时保持只读。
 
 ## 诊断日志

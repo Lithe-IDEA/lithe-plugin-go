@@ -22,12 +22,14 @@
 | --- | --- | --- | --- | --- |
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | missing / not-applicable | 2026-11-15 macOS 宿主端到端测试通过 |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | missing / not-applicable | 2026-11-15 macOS 宿主端到端测试通过 |
-| `go-project-generator` | 「新建项目」里的 Go 模块 | implemented / pending | missing / not-applicable | 2026-11-15 macOS 宿主集成测试通过 |
+| `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | missing / not-applicable | 2026-11-15 macOS 宿主集成测试通过 |
 
 ## go-support-plugin
 
 **能力**：用用户自己的 `gopls` 提供代码智能；用声明式 `buildSystems` 识别 Go 模块，在构建窗口里列出包，
 运行 `go build`、`go vet`、`go test` 和 `go run`，列出模块依赖；插件设置调整 `go` 路径和 gopls 选项。
+没有设置 `go` 路径时，构建用 `toolDefinitions` 里的 `go` 工具定义解析 Go：项目固定的 Go、全局默认、`GOROOT`、
+`PATH` 里的 `go`、在常见位置找到的最新安装。
 
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
@@ -36,7 +38,9 @@
 
 **证据**：
 
-- `io.github.lithe-idea.go-support/plugin.json`：`languageServers`、`buildSystems`、`settings` 的声明。
+- `io.github.lithe-idea.go-support/plugin.json`：`languageServers`、`buildSystems`、`settings`、`toolDefinitions` 的声明。
+- `e2e/host/desktop/internal/projectgen/go_integration_test.go`：`TestGoPluginToolDefinitionFindsTheLocalGo`
+  确认工具定义找到 `PATH` 里那个 go 的 GOROOT 和版本。
 - `e2e/host/desktop/internal/workbench/official_go_plugin_e2e_test.go`：宿主端到端测试。
 
 **依赖的宿主能力**：`languageServers`（宿主启动 gopls 并转发 `workspace/configuration`）、`buildSystems`
@@ -50,6 +54,7 @@
 `application` 目标、Build、Vet、运行入口、Go executable 设置重新读取模型并用于后续构建、gopls 诊断、
 gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变。没有覆盖 `go test`、依赖列表、`go.mod` 变化后重新读取、
 构建选项（Build Tags、Race Detector）、缺少 gopls 时的提示，也没有做下面的手工验收。
+这次验证早于构建加入 `go` 工具定义解析（插件 PR “GOROOT 选择”），之后没有重跑这个测试。
 
 **验证方法**（macOS）：
 
@@ -60,6 +65,7 @@ gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变
 4. 打开 `.go` 文件：gopls 来自用户的 `PATH`，补全、跳转定义、悬停、诊断和格式化可用；修改 gofumpt、
    Staticcheck、补全占位符、悬停文档设置后立即生效，不需要重启语言服务器。
 5. 修改 Go executable 设置后模块重新读取，之后的构建使用新路径；Build Tags 和 Race Detector 构建选项出现在命令里。
+   清空 Go executable 后，「构建、执行、部署 › 工具链」列出电脑上的 Go；为项目选另一个 Go 后，构建输出里的 `go version` 随之改变。
 6. 查看依赖列表（含版本和间接依赖）；修改 `go.mod` 后模块重新读取。
 7. `PATH` 里没有 gopls 时给出缺失提示，不崩溃。
 8. 禁用插件后 gopls 和运行中的进程退出；插件安装目录在整个过程中不被写入。
@@ -110,9 +116,10 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 
 ## go-project-generator
 
-**能力**：「新建项目」对话框里的 Go。生成 `go.mod`（`module` 行是模块路径，默认是小写的项目名；`go` 行默认 1.21）
-和 `.gitignore`，可选生成打印 `Hello, Gopher!` 的示例 `main.go`。`go.mod` 由模板写出，不运行 `go mod init`，
-创建项目不需要联网，也不需要 `go`。
+**能力**：「新建项目」对话框里的 Go。GOROOT 下拉列出 `go` 工具定义在电脑上找到的 Go，默认是版本最新的一个，
+创建后记为项目固定，构建和运行使用它；没有找到 Go 时留空，不影响创建。生成 `go.mod`（`module` 行是模块路径，
+默认是小写的项目名；`go` 行默认是所选 GOROOT 的版本，手动改过后不再跟随）和 `.gitignore`，可选生成打印
+`Hello, Gopher!` 的示例 `main.go`。`go.mod` 由模板写出，不运行 `go mod init`，创建项目不需要联网，也不需要先装好 `go`。
 
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
@@ -121,26 +128,42 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 
 **证据**：
 
-- `io.github.lithe-idea.go-support/plugin.json`：`projectGenerators` 里的 `go-module`，以及 `project.generate` 权限。
+- `io.github.lithe-idea.go-support/plugin.json`：`projectGenerators` 里的 `go-module`（`goroot` 是 `tool` 字段，
+  `goVersion` 默认 `${field.goroot.version}`）、`toolDefinitions` 里的 `go`，以及 `project.generate` 权限。
 - `io.github.lithe-idea.go-support/templates/go/`：模块和示例代码模板。
 - `e2e/host/desktop/internal/projectgen/go_integration_test.go`：经 Core 的表单、生成计划和宿主执行器的集成测试。
 
+**依赖的宿主能力**：`projectGenerators` 的 `tool` 字段和创建后的项目固定，`toolDefinitions` 的发现和解析；
+以子命令开头的版本探针 `go version` 需要 Rust Core 6477e9a（Lithe-core-rust#52，宿主 [1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)）。
+
 **限制**：字段名称和说明目前只有英文，插件语言文件还不覆盖新建项目。
 
-**最近验证**：2026-11-15，macOS（Apple Silicon），插件源目录里的清单和模板，宿主 `cebbe0def`（1lck/Lithe-IDEA#1958 的分支提交），
-Go 1.27.4。`node scripts/e2e-host.mjs` 在 `internal/projectgen` 通过三个集成测试，经 Core 的表单、生成计划和宿主执行器：
-`TestGoPluginGeneratesAModuleWithSampleCode`（`Hello-Go` 生成 `module hello-go`、`go 1.21`、`main.go`，`.gitignore`
-忽略 `__debug_bin*`，打开 `main.go`，生成的模块能通过 `go vet` 并且 `go run` 输出 `Hello, Gopher!`）、
-`TestGoPluginGeneratesAnEmptyModule`（关闭示例代码，改模块路径和 Go 版本，只生成 `go.mod` 并打开它）和
-`TestGoPluginFormRejectsAModulePathWithSpaces`（`My App` 默认得到的模块路径被表单拒绝，改成合法路径后通过）。覆盖验证方法第 2 步里的
-文件、打开的文件和 `go run`，以及第 3、4、5 步；没有覆盖新建项目对话框的界面和图标（第 1 步）、创建后在构建窗口里的识别，
-也没有做手工验收。
+**最近验证**：2026-11-15，macOS（Apple Silicon），插件源目录里的清单和模板，宿主 `b03dbf0c0`（1lck/Lithe-IDEA#1964 的分支提交：preview 1fc1e8b05 加上
+Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/projectgen` 的 `^TestGoPlugin`，通过五个集成测试，经 Core 的表单、
+生成计划、宿主执行器和工具链解析：
+
+- `TestGoPluginToolDefinitionFindsTheLocalGo`：插件的 `go` 工具定义找到 `PATH` 里那个 go 的 GOROOT
+  （`/opt/homebrew/Cellar/go/1.27.4/libexec`），版本与 `go env GOVERSION` 一致。
+- `TestGoPluginGeneratesAModuleWithSampleCode`：用找到的 Go 填 GOROOT，`Hello-Go` 生成 `module hello-go` 和
+  `go 1.27.4`、`main.go`，`.gitignore` 忽略 `__debug_bin*`，打开 `main.go`；生成计划带 `goroot` 的项目固定，
+  保存后工具链把项目里的 `go` 解析到这个 GOROOT，用它 `go vet` 通过、`go run` 输出 `Hello, Gopher!`。
+- `TestGoPluginGeneratesAnEmptyModuleWithoutAGoroot`：没有 Go 时手填 Go 版本，关闭示例代码、改模块路径，
+  只生成 `go.mod` 并打开它，没有项目固定。
+- `TestGoPluginGoVersionFollowsTheGoroot`：没有 Go 或只有低于 1.21 的 Go 时 GOROOT 留空、Go 版本必填；
+  Go 版本默认取最新的 GOROOT，换 GOROOT 后跟着变，手动改过后保留；手动选低于 1.21 的 GOROOT 时表单报错。
+- `TestGoPluginFormRejectsAModulePathWithSpaces`：`My App` 默认得到的模块路径被表单拒绝，改成合法路径后通过。
+
+覆盖验证方法第 2 步里的文件、打开的文件、项目固定和 `go run`，以及第 3、4、5、6 步的表单和生成结果；
+没有覆盖新建项目对话框的界面和图标（第 1 步）、GOROOT 下拉的显示、创建后在构建窗口里的识别，也没有做手工验收。
 
 **验证方法**（macOS）：
 
 1. 安装插件包，打开「新建项目」：左侧出现 Go，图标在浅色和深色外观下都清楚。
-2. 名称填 `Hello-Go`，保持默认创建：项目里有 `go.mod`（`module hello-go`、`go 1.21`）、`.gitignore` 和 `main.go`，
-   创建后打开 `main.go`；构建窗口识别出 Go Modules，运行入口输出 `Hello, Gopher!`。
+2. GOROOT 下拉列出电脑上的 Go，默认选中版本最新的一个。名称填 `Hello-Go`，保持默认创建：项目里有 `go.mod`
+   （`module hello-go`，`go` 行是所选 Go 的版本）、`.gitignore` 和 `main.go`，创建后打开 `main.go`；构建窗口识别出
+   Go Modules，运行入口输出 `Hello, Gopher!`；「构建、执行、部署 › 工具链」显示项目固定了这个 Go。
 3. 关闭“添加示例代码”再创建：没有 `main.go`，创建后打开 `go.mod`。
 4. 名称里有空格（如 `My App`）时，模块路径显示问题，改成合法路径后才能创建。
-5. 展开高级选项修改 Go 版本，`go.mod` 的 `go` 行随之改变。
+5. 换一个 GOROOT，高级选项里的 Go 版本跟着变；手动修改 Go 版本后再换 GOROOT，Go 版本保持手动填写的值，
+   `go.mod` 的 `go` 行是这个值。
+6. 电脑上没有 Go（或只有低于 1.21 的 Go）时 GOROOT 留空，高级选项自动展开并提示填写 Go 版本，填写后可以创建。
