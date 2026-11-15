@@ -12,9 +12,34 @@ import (
 	"github.com/1lck/Lithe-IDEA/desktop/internal/core"
 )
 
-// goDebugSample is main.go of the debugged module. Zero-based line 6 is the
-// Printf call, where main's local name already holds "Gopher".
-const goDebugSample = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Gopher\"\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n"
+// goDebugWorkspace lays out a workspace like a course folder: the root has no
+// go.mod and holds several projects side by side. lab-2 is a module whose main
+// package reads a file by a path relative to its own directory and whose
+// cmd/tool is a second main package; scratch has no go.mod at all and spreads
+// its main package over two files.
+var goDebugWorkspace = map[string]string{
+	"lab-1/go.mod":  "module example.com/lab1\n\ngo 1.21\n",
+	"lab-1/main.go": "package main\n\nfunc main() {}\n",
+	"lab-2/go.mod":  "module example.com/lab2\n\ngo 1.21\n",
+	"lab-2/main.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\n" +
+		"func main() {\n\tdata, err := os.ReadFile(\"examples/greeting.txt\")\n\tif err != nil {\n\t\tpanic(err)\n\t}\n" +
+		"\tname := strings.TrimSpace(string(data))\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
+	"lab-2/examples/greeting.txt": "Gopher\n",
+	"lab-2/cmd/tool/main.go":      "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Tool\"\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
+	"scratch/main.go":             "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := greeting()\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
+	"scratch/greeting.go":         "package main\n\nfunc greeting() string { return \"Loose\" }\n",
+}
+
+// goDebugProgram is one program of goDebugWorkspace the test debugs.
+type goDebugProgram struct {
+	// source is the file, relative to the workspace, the breakpoint goes in.
+	source string
+	// line is the one-based line of the Printf call, where main's local name
+	// already holds its value.
+	line int
+	// local is that value as Variables shows it.
+	local string
+}
 
 // samePath reports whether two paths name the same file, so a path Delve
 // reports through a symbolic link (macOS's /var is /private/var) still matches.
@@ -51,12 +76,16 @@ func clickNamedWithoutSettling(t *testing.T, h *harness, name string) {
 	}
 }
 
-// TestOfficialGoPluginDebugsAModuleWithDelve covers the Delve adapter of the Go
-// Support archive: the Debug window starts the user's dlv dap, the host reads the
-// address Delve announces and connects, a breakpoint in main.go stops main.main
-// with its local variable, Continue runs the program to its end and the session
-// ends by itself, and Delve removes the program it built for the session.
-func TestOfficialGoPluginDebugsAModuleWithDelve(t *testing.T) {
+// TestOfficialGoPluginDebugsEachProjectOfAWorkspaceWithDelve covers the Delve
+// adapter of the Go Support archive in a workspace whose root has no go.mod:
+// the Debug window starts the user's dlv dap, the host reads the address Delve
+// announces and connects, and for a module's main package, a second main
+// package of that module and a directory without go.mod, a breakpoint stops
+// main.main with its local variable, the program runs in its own directory,
+// Continue runs it to its end, the session ends by itself, and Delve removes
+// the program it built. The temporary directory is under macOS's /var, a
+// symbolic link, which is where go build once read the wrong directory.
+func TestOfficialGoPluginDebugsEachProjectOfAWorkspaceWithDelve(t *testing.T) {
 	archive := os.Getenv("LITHE_TEST_GO_PLUGIN_ARCHIVE")
 	if archive == "" {
 		t.Skip("set LITHE_TEST_GO_PLUGIN_ARCHIVE to a go-support-<version>-darwin.zip")
@@ -78,32 +107,50 @@ func TestOfficialGoPluginDebugsAModuleWithDelve(t *testing.T) {
 	before := packageDigest(t, installed)
 	h.app.reloadPluginLanguages()
 	root := t.TempDir()
-	writePluginFixture(t, root, map[string]string{
-		"go.mod":  "module example.com/hello\n\ngo 1.21\n",
-		"main.go": goDebugSample,
-	})
+	writePluginFixture(t, root, goDebugWorkspace)
 	p := openHostedPanel(t, h, root)
 	if declaration := p.debug.adapters[0].Declaration; declaration.Transport != "tcpAnnounced" || declaration.LaunchKind != "systemCommand" {
 		t.Fatalf("declaration = %+v, want Delve started as dlv dap and announcing its address", declaration)
 	}
-	// Opening main.go starts gopls, whose tasks run until the project closes, so from
-	// here on every step waits for its own state instead of for all background work.
-	source := filepath.Join(root, "main.go")
-	h.app.openFileAtPosition(p, source, 6, 0)
-	awaitStateWithin(t, h, 30*time.Second, "main.go with the caret on the Printf line", func() bool {
+	for _, program := range []goDebugProgram{
+		{source: "lab-2/main.go", line: 15, local: `"Gopher"`},
+		{source: "lab-2/cmd/tool/main.go", line: 7, local: `"Tool"`},
+		{source: "scratch/main.go", line: 7, local: `"Loose"`},
+	} {
+		debugGoProgram(t, h, p, root, program)
+	}
+	if binaries := debugBinaries(t, root); len(binaries) != 0 {
+		t.Fatalf("Delve built in the workspace root: %v", binaries)
+	}
+
+	h.app.closeProject()
+	awaitStateWithin(t, h, 30*time.Second, "the closed project", func() bool { return h.app.project == nil })
+	h.settle()
+	assertPackageUnchanged(t, installed, before)
+}
+
+// debugGoProgram debugs one program of the open workspace from a breakpoint on
+// the Printf line of its source to its end.
+func debugGoProgram(t *testing.T, h *harness, p *project, root string, program goDebugProgram) {
+	t.Helper()
+	source := filepath.Join(root, filepath.FromSlash(program.source))
+	// Opening a Go file starts gopls, whose tasks run until the project closes, so
+	// every step waits for its own state instead of for all background work.
+	h.app.openFileAtPosition(p, source, program.line-1, 0)
+	awaitStateWithin(t, h, 30*time.Second, program.source+" with the caret on the Printf line", func() bool {
 		d := p.selectedDocument(p.docs.group)
 		if d == nil || !samePath(d.path, source) {
 			return false
 		}
 		line, _ := d.view.Caret()
-		return line == 6
+		return line == program.line-1
 	})
 	clickNamedWithoutSettling(t, h, h.shared("native.viewBreakpoints"))
 	awaitStateWithin(t, h, 10*time.Second, "the Breakpoints dialog", func() bool { return p.panels.breakpointsOpen })
 	clickNamedWithoutSettling(t, h, h.app.text.Debug.ToggleBreakpoint)
-	awaitStateWithin(t, h, 10*time.Second, "the breakpoint on main.go:7", func() bool {
+	awaitStateWithin(t, h, 10*time.Second, "the breakpoint in "+program.source, func() bool {
 		for path, lines := range p.debug.breakpoints {
-			if samePath(path, source) && len(lines) == 1 && lines[0].line == 7 {
+			if samePath(path, source) && len(lines) == 1 && lines[0].line == int64(program.line) {
 				return true
 			}
 		}
@@ -114,15 +161,15 @@ func TestOfficialGoPluginDebugsAModuleWithDelve(t *testing.T) {
 
 	clickNamedWithoutSettling(t, h, h.app.text.Debug.Start)
 	// Delve builds the package before it runs it, so the first stop waits for a build.
-	awaitStateWithin(t, h, 2*time.Minute, "Delve to stop at the breakpoint", func() bool {
+	awaitStateWithin(t, h, 2*time.Minute, "Delve to stop in "+program.source, func() bool {
 		if p.debug.failure != "" {
-			t.Fatalf("debug start failed: %s\noutput: %q", p.debug.failure, p.debug.output)
+			t.Fatalf("debugging %s failed: %s\noutput: %q", program.source, p.debug.failure, p.debug.output)
 		}
 		return p.debug.state == "paused" && len(p.debug.frames) > 0
 	})
 	top := p.debug.frames[0]
-	if top.Name != "main.main" || top.Line != 7 || !samePath(top.SourcePath, source) {
-		t.Fatalf("top frame = %+v, want main.main at main.go:7", top)
+	if top.Name != "main.main" || top.Line != int64(program.line) || !samePath(top.SourcePath, source) {
+		t.Fatalf("top frame = %+v, want main.main at %s:%d", top, program.source, program.line)
 	}
 	// The locals open by themselves once the stop's scopes arrive.
 	awaitStateWithin(t, h, time.Minute, "main's local name in Variables", func() bool {
@@ -131,7 +178,7 @@ func TestOfficialGoPluginDebugsAModuleWithDelve(t *testing.T) {
 				continue
 			}
 			for _, node := range scope.container.nodes {
-				if node.name == "name" && node.value == `"Gopher"` {
+				if node.name == "name" && node.value == program.local {
 					return true
 				}
 			}
@@ -144,20 +191,18 @@ func TestOfficialGoPluginDebugsAModuleWithDelve(t *testing.T) {
 	}
 
 	clickNamedWithoutSettling(t, h, h.app.text.Debug.Continue)
-	awaitStateWithin(t, h, time.Minute, "the program to end its session", func() bool {
+	awaitStateWithin(t, h, time.Minute, program.source+" to end its session", func() bool {
 		return p.debug.activeSession() == nil && p.debug.state == "terminated"
 	})
-	if output := strings.Join(p.debug.output, "\n"); !strings.Contains(output, "Hello, Gopher!") {
-		t.Fatalf("the console does not show the program's output: %q", output)
+	// lab-2 prints what it read from examples/greeting.txt, which it finds only
+	// when it runs in its own directory.
+	greeting := "Hello, " + strings.Trim(program.local, `"`) + "!"
+	if output := strings.Join(p.debug.output, "\n"); !strings.Contains(output, greeting) {
+		t.Fatalf("the console does not show %q: %q", greeting, output)
 	}
 	// The ended session closes Delve's connection and asks Delve to stop within the stop
-	// time; Delve then deletes the program it built, so nothing is left in the module.
+	// time; Delve then deletes the program it built in the package's directory.
 	awaitStateWithin(t, h, 30*time.Second, "Delve to remove its debug binary", func() bool {
-		return len(debugBinaries(t, root)) == 0
+		return len(debugBinaries(t, filepath.Dir(source))) == 0
 	})
-
-	h.app.closeProject()
-	awaitStateWithin(t, h, 30*time.Second, "the closed project", func() bool { return h.app.project == nil })
-	h.settle()
-	assertPackageUnchanged(t, installed, before)
 }

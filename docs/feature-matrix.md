@@ -84,13 +84,14 @@ gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变
 ## go-debug-delve
 
 **能力**：「调试」窗口里的 Go (Delve) 适配器。Lithe 启动在 Lithe 里安装时记下的或用户 `PATH` 里的 `dlv dap`，读到 Delve 在标准输出打印的
-`DAP server listening at: <地址>` 后连接这个本机地址；调试当前文件所在的包（`target.directory` 绑定到 `program`），
-工作目录是项目根目录。支持断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台，程序结束后会话自动结束。
+`DAP server listening at: <地址>` 后连接这个本机地址；在当前文件所在的包目录里构建并调试这个包（`dlvCwd` 和 `env.PWD` 绑定到 `target.directory`，`program` 是 `.`），
+程序的工作目录也是包目录（`cwd` 绑定到 `target.directory`，不再是调试引擎默认的工作区根目录）。打开的文件夹根目录不需要 `go.mod`，可以并排放多个模块；没有 `go.mod` 的目录以
+`GO111MODULE=auto` 构建目录里的全部文件。支持断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台，程序结束后会话自动结束。
 缺少 `dlv` 时可以在插件详情的能力卡片上安装。
 
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
-| macOS | implemented | pending | 需要宿主支持 `tcpAnnounced` 调试适配器（1lck/Lithe-IDEA#1954）、Rust Core a58e07e 或更新版本的 `target.directory` 绑定，以及宿主按工作目录设置子进程 `PWD`（1lck/Lithe-IDEA#1958；没有它时，项目路径经过符号链接的话 Delve 编译会失败） |
+| macOS | implemented | pending | 需要宿主支持 `tcpAnnounced` 调试适配器（1lck/Lithe-IDEA#1954），以及带 `targetBindings.adapterArguments`、且 `targetBindings.cwd` 可绑到 `target.directory` 的 Rust Core（Lithe-core-rust#55，宿主固定版本在 1lck/Lithe-IDEA 的跟进 PR 里）。旧宿主不认识这个字段，会拒绝安装本版本 |
 | Windows | missing | not-applicable | 没有 Windows 包 |
 
 **证据**：
@@ -100,11 +101,12 @@ gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变
 - `e2e/host/desktop/internal/workbench/official_go_plugin_debug_e2e_test.go`：宿主端到端测试。
 
 **依赖的宿主能力**：`debugAdapters` 的 `tcpAnnounced` 传输（宿主启动适配器进程，交给 Core 判断哪一行是地址公告，
-再连接公告的本机端口）、`target.directory` 绑定（Core a58e07e，Lithe-core-rust#47）、
+再连接公告的本机端口）、`targetBindings.adapterArguments` 的点分路径绑定（Lithe-core-rust#55）、
 `commandInstallers`（Core c550c2b，宿主 1lck/Lithe-IDEA#1971）。
 
 **限制**：只支持 launch，不支持 attach 和调试测试；适配器只在打开 `.go` 文件时可选（选择器是 `file` 加 `go` 语言），
-从构建窗口的运行入口启动调试还不支持。Delve 在项目根目录生成 `__debug_bin…` 临时程序，会话结束时删除。
+从构建窗口的运行入口启动调试还不支持。Delve 在包目录生成 `__debug_bin…` 临时程序，会话结束时删除。
+没有 `go.mod` 的目录以 GOPATH 模式构建，只能导入标准库和 `GOPATH/src` 里的包。
 适配器名称 Go (Delve) 目前不能翻译：插件语言文件还不覆盖调试适配器。
 
 **最近验证**：2026-11-15，macOS（Apple Silicon），插件 0.1.0 发布包，宿主 `cebbe0def`（1lck/Lithe-IDEA#1958 的分支提交），
@@ -115,10 +117,13 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 **验证方法**（macOS）：
 
 1. 安装插件包，确认安装对话框列出启动调试器权限；`PATH` 里有 `dlv`。
-2. 打开含 `go.mod` 的项目，打开 `main.go`，在一行上设断点，在「调试」窗口选 Go (Delve) 后点「开始」。
+2. 打开根目录没有 `go.mod`、里面并排放了几个模块的文件夹，打开其中一个模块的 `main.go`，在一行上设断点，
+   在「调试」窗口选 Go (Delve) 后点「开始」。
 3. 程序停在断点：调用栈顶是 `main.main` 和断点所在行，变量里能看到局部变量的值；单步、表达式求值可用。
-4. 点「继续」：程序运行到结束，输出显示在调试控制台，会话自动结束，项目根目录里没有留下 `__debug_bin…`。
-5. 调试 `cmd/<名字>` 这样的子包：打开该包里的文件后开始，调试的是这个包。
+4. 点「继续」：程序运行到结束，按相对路径读到包目录里的文件，输出显示在调试控制台，会话自动结束，
+   包目录和文件夹根目录里都没有留下 `__debug_bin…`。
+5. 调试 `cmd/<名字>` 这样的子包：打开该包里的文件后开始，调试的是这个包；再调试一个没有 `go.mod`、
+   由两个文件组成的目录，两个文件一起构建。
 6. 没有 `dlv` 时，插件详情「功能」页的调试器卡片显示“未找到 dlv”和安装按钮；安装后开始调试能停在断点。
 7. 整个过程中插件安装目录不被写入。
 
