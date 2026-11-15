@@ -102,20 +102,31 @@ GOROOT 只能选 Go 1.21 或更新的版本；选了更旧的版本时表单会�
 | 程序 | 用途 | 查找方式 |
 | --- | --- | --- |
 | `go` 1.21 或更新版本 | 读取模块、构建、检查、测试、运行、依赖 | 插件设置 Go executable；留空时用「工具链」选出的 Go，最后找 `PATH` 里的 `go` |
-| `gopls` | 代码智能 | `PATH` 里的 `gopls` |
-| `dlv`（Delve，需要有 `dlv dap` 命令，已用 1.27.2 验证） | 调试 | `PATH` 里的 `dlv`；Delve 构建程序时用 `PATH` 里的 `go` |
+| `gopls` | 代码智能 | 先找在 Lithe 里安装时记下的目录，再找 `PATH` 里的 `gopls` |
+| `dlv`（Delve，需要有 `dlv dap` 命令，已用 1.27.2 验证） | 调试 | 先找在 Lithe 里安装时记下的目录，再找 `PATH` 里的 `dlv`；Delve 构建程序时用 `PATH` 里的 `go` |
 
-安装插件时 Lithe 会列出这些程序和插件需要的权限（启动语言服务器、运行构建命令、启动调试器、创建项目），
-确认后才会安装。没有这些程序的话可以先安装：
+安装插件时 Lithe 会列出这些程序和插件需要的权限（启动语言服务器、运行构建命令、启动调试器、创建项目、
+安装插件所需的命令行工具），确认后才会安装。
+
+`go` 需要自己安装，例如 `brew install go`。gopls 和 dlv 可以在 Lithe 里装：
+
+1. 打开 **设置 → 插件 → 已安装**，选中 Go Support，切到 **功能**。
+2. 缺少的程序会在对应能力卡片上显示“未找到 gopls”或“未找到 dlv”，旁边有 **安装** 按钮。
+3. 点击后选择安装位置，核对要运行的命令，确认后开始安装，输出显示在对话框里：
+   - **Lithe 管理的目录**：运行 `go install <包>@latest` 时把 `GOBIN` 设为插件自己的状态目录。
+     不改动 Go 的默认目录，卸载插件时一起删除。
+   - **Go 的默认位置**：不设 `GOBIN`，装进 `go env GOBIN`；`GOBIN` 为空时装进 `$(go env GOPATH)/bin`。
+     卸载插件时不删除这些文件。
+
+两种位置装好的命令都会被记下，之后启动 gopls 和 Delve 时直接用，不需要再改 `PATH`。安装需要联网，
+用的是「构建、执行、部署 › 工具链」选出的 Go（打开的项目固定了 Go 时用那一个），需要 1.21 或更新版本。也可以自己在终端安装：
 
 ```bash
-brew install go
 go install golang.org/x/tools/gopls@latest
 go install github.com/go-delve/delve/cmd/dlv@latest
 ```
 
-`go install` 把 gopls 和 dlv 装在 `$(go env GOPATH)/bin`，这个目录需要在 Lithe 能看到的 `PATH` 里。
-不调试的话可以不装 dlv。
+在终端安装时，`$(go env GOPATH)/bin` 需要在 Lithe 能看到的 `PATH` 里。不调试的话可以不装 dlv。
 
 ## 安装
 
