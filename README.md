@@ -142,7 +142,7 @@ go install github.com/go-delve/delve/cmd/dlv@latest
 
 darwin 包同时支持 Apple Silicon 和 Intel Mac，windows 包同时支持 Windows ARM64 和 x64。两个包字节相同：
 插件只声明 Lithe 怎样启动用户自己的 go、gopls 和 dlv，Windows 上从 GOROOT 解析 `bin/go.exe`，
-`gopls` 和 `dlv` 按 PATHEXT 找到 `.exe`。
+`gopls` 和 `dlv` 按 PATHEXT 找到 `.exe`。Delve 本身还不支持 Windows ARM64，那里没有调试，其他功能可用。
 
 ## 工作方式
 

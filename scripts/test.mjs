@@ -11,7 +11,9 @@
 //
 // GO selects the go executable (default `go`). LITHE_TEST_PLUGIN_DIR tests an
 // unpacked release archive instead of the source directory. LITHE_TEST_INSTALL=0
-// skips the gopls and dlv installs, which download and build them.
+// skips the gopls and dlv installs, which download and build them. Where Delve
+// has no backend (Windows ARM64 as of Delve 1.27) its own build refuses, and
+// the dlv checks are reported as skipped, not failed.
 //
 // Usage: node scripts/test.mjs
 
@@ -64,6 +66,12 @@ function run(command, args, { cwd, env = process.env } = {}) {
 const jsonStream = (text) => text.split(/^(?=\{)/m).filter((part) => part.trim()).map((part) => JSON.parse(part));
 const samePath = (a, b) => realpathSync.native(a) === realpathSync.native(b);
 
+/** A check that cannot run on this platform for a reason outside the plugin. */
+class Skip extends Error {}
+// Delve refuses to build where it has no backend, through a package named
+// your_<os>_architecture_is_not_supported_by_delve (Windows ARM64 as of 1.27).
+const DELVE_UNSUPPORTED = /your_[a-z]+_architecture_is_not_supported_by_delve/;
+
 let failed = false;
 async function check(name, body) {
   const started = Date.now();
@@ -71,6 +79,7 @@ async function check(name, body) {
     await body();
     console.log(`✓ ${name} (${Date.now() - started} ms)`);
   } catch (error) {
+    if (error instanceof Skip) return console.log(`- ${name}: ${error.message}`);
     failed = true;
     console.error(`✗ ${name}\n${error.stack}`);
   }
@@ -152,11 +161,18 @@ try {
     const bin = join(scratch, "Lithe Tools", "bin");
     mkdirSync(bin, { recursive: true });
     const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` };
+    let noDelve;
     for (const installer of manifest.commandInstallers) {
       await check(`the managed ${installer.id} install writes ${installer.commands.join(", ")} to its GOBIN`, () => {
         const environment = Object.fromEntries(Object.entries(installer.targets.managed.environment)
           .map(([name, value]) => [name, value.replaceAll("${installDirectory}", bin)]));
-        run(go, installer.arguments, { cwd: scratch, env: { ...process.env, ...environment } });
+        try {
+          run(go, installer.arguments, { cwd: scratch, env: { ...process.env, ...environment } });
+        } catch (error) {
+          if (installer.id !== "dlv" || !DELVE_UNSUPPORTED.test(error.message)) throw error;
+          noDelve = `Delve does not support ${process.platform}/${process.arch}; its install fails in Delve's own build`;
+          throw new Skip(noDelve);
+        }
         for (const command of installer.commands) {
           assert.ok(existsSync(join(bin, command + exe)), `${command}${exe} in ${readdirSync(bin).join(", ")}`);
         }
@@ -171,6 +187,7 @@ try {
     });
 
     await check("dlv dap announces the endpoint the debug adapter reads", async () => {
+      if (noDelve) throw new Skip(noDelve);
       const { process: launch, endpoint } = manifest.debugAdapters.find((entry) => entry.id === "delve").launch;
       assert.equal(launch.launch.kind, "systemCommand");
       const child = spawn(launch.launch.commands[0], launch.arguments, { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });

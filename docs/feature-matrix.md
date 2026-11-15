@@ -21,7 +21,7 @@
 | ID | 能力 | macOS | Windows | 最近验证 |
 | --- | --- | --- | --- | --- |
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows 原生 CI 待通过 |
-| `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows 原生 CI 待通过 |
+| `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 原生 CI 待通过；Windows ARM64 上 Delve 不支持 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows 原生 CI 待通过 |
 
 ## go-support-plugin
@@ -92,7 +92,7 @@ gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
 | macOS | implemented | pending | 需要宿主支持 `tcpAnnounced` 调试适配器（1lck/Lithe-IDEA#1954），以及带 `targetBindings.adapterArguments`、且 `targetBindings.cwd` 可绑到 `target.directory` 的 Rust Core（Lithe-core-rust#55，宿主固定版本在 1lck/Lithe-IDEA 的跟进 PR 里）。旧宿主不认识这个字段，会拒绝安装本版本 |
-| Windows | implemented | pending | 同 macOS 的宿主要求；`dlv` 按 PATHEXT 找到 `dlv.exe`，托管安装写到 `GOBIN`。见下文“Windows 安装包” |
+| Windows | partial | pending | x64：同 macOS 的宿主要求；`dlv` 按 PATHEXT 找到 `dlv.exe`，托管安装写到 `GOBIN`。ARM64：Delve 本身不支持 windows/arm64（1.27.2 构建时报 `your_windows_architecture_is_not_supported_by_delve`），能力卡片上的安装会以这个构建错误失败，插件清单无法按架构隐藏它。见下文“Windows 安装包” |
 
 **证据**：
 
@@ -186,8 +186,10 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 | 能力 | Windows ARM64 | Windows x64 | 验证入口 |
 | --- | --- | --- | --- |
 | 安装包 | 已实现（与 darwin 包同一份字节） | 已实现（同一份包） | `scripts/package/windows.test.mjs`：摘要相同，`go.exe` 布局，条目名在 Windows 上可解压 |
-| 真实 go、gopls、dlv 流程 | 原生 CI 待通过（`windows-11-arm`） | 原生 CI 待通过（`windows-latest`） | `.github/workflows/ci.yml` 的 `commands` 任务跑 `scripts/test.mjs`，`LITHE_TEST_PLUGIN_DIR` 指向解压到带空格路径的 Windows 包 |
+| 真实 go、gopls 流程 | 原生 CI 待通过（`windows-11-arm`） | 原生 CI 待通过（`windows-latest`） | `.github/workflows/ci.yml` 的 `commands` 任务跑 `scripts/test.mjs`，`LITHE_TEST_PLUGIN_DIR` 指向解压到带空格路径的 Windows 包 |
+| Delve 调试 | 不支持：Delve 上游没有 windows/arm64 后端，`scripts/test.mjs` 把 dlv 检查记为跳过 | 原生 CI 待通过（托管安装和 `dlv dap` 端点公告） | 同上 |
 
 包里只有声明资源（清单、模板、图标），ARM64 与 x64 的差别只在用户自己的 Go、gopls 和 dlv，所以两种架构用同一份包。
+Delve 目前不能在 Windows ARM64 上构建，所以那里没有调试；Delve 加入支持后，同一份包不改就能用，测试也会自动改为实际检查。
 `scripts/test.mjs` 按清单逐条运行版本探测、模型和依赖命令、构建、vet、过滤后的测试、`go env` 目录、gopls 和 dlv 的托管安装、
 gopls 的校验参数和 `dlv dap` 的端点公告。这些只是命令层面的自动化测试，不能代替 Lithe 里的验收，验证列保持 `pending`。
