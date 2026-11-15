@@ -432,13 +432,19 @@
       "configurations": {
         "launch": {
           "arguments": {
-            "mode": "debug"
+            "mode": "debug",
+            "program": ".",
+            "env": {
+              "GO111MODULE": "auto"
+            }
           },
           "targetBindings": {
-            "program": "target.directory",
-            "cwd": "target.workingDirectory",
+            "cwd": "target.directory",
             "args": "target.arguments",
-            "env": "target.environment"
+            "adapterArguments": {
+              "dlvCwd": "target.directory",
+              "env.PWD": "target.directory"
+            }
           }
         }
       },
