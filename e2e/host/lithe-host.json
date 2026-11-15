@@ -1,10 +1,14 @@
 {
   "repository": "https://github.com/1lck/Lithe-IDEA.git",
-  "revision": "059d878d4284e1a1fd218aeaa56c29d9753d4dfa",
+  "revision": "cebbe0def689aed04385156143308e66733f8ed7",
   "packages": {
-    "./internal/workbench": "^TestOfficialGoPluginBuildsAndServesAModule$"
+    "./internal/projectgen": "^TestGoPlugin",
+    "./internal/workbench": "^TestOfficialGoPlugin(BuildsAndServesAModule|DebugsAModuleWithDelve)$"
   },
   "requiredEnvironment": {
-    "LITHE_TEST_GO_PLUGIN_ARCHIVE": "go-support-<version>-darwin.zip to install, for example dist/go-support-0.0.1-darwin.zip"
+    "LITHE_TEST_GO_PLUGIN_ARCHIVE": "go-support-<version>-darwin.zip to install, for example dist/go-support-0.1.0-darwin.zip"
+  },
+  "repositoryEnvironment": {
+    "LITHE_PLUGIN_GO_DIR": "io.github.lithe-idea.go-support"
   }
 }

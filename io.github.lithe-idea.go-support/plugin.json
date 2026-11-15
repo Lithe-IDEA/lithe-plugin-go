@@ -2,12 +2,14 @@
   "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "pluginAPIVersion": 0,
   "requires": {
     "buildSystems": 0,
+    "debugAdapters": 0,
     "languageServers": 0,
     "languages": 0,
+    "projectGenerators": 0,
     "settings": 0
   },
   "vendor": {
@@ -16,11 +18,14 @@
     "signatureRequirement": "none"
   },
   "permissions": [
+    "debug.launch",
     "languageServer.launch",
-    "process.build"
+    "process.build",
+    "project.generate"
   ],
   "activationEvents": [
     "onBuildSystem:go",
+    "onDebug:delve",
     "onLanguage:go"
   ],
   "settings": [
@@ -390,6 +395,139 @@
           "go.work"
         ]
       }
+    }
+  ],
+  "debugAdapters": [
+    {
+      "id": "delve",
+      "displayName": "Go (Delve)",
+      "adapterID": "go",
+      "requests": [
+        "launch"
+      ],
+      "selectors": [
+        {
+          "targetKinds": [
+            "file"
+          ],
+          "languageIDs": [
+            "go"
+          ]
+        }
+      ],
+      "configurationTypes": [
+        "go"
+      ],
+      "configurations": {
+        "launch": {
+          "arguments": {
+            "mode": "debug"
+          },
+          "targetBindings": {
+            "program": "target.directory",
+            "cwd": "target.workingDirectory",
+            "args": "target.arguments",
+            "env": "target.environment"
+          }
+        }
+      },
+      "launch": {
+        "process": {
+          "launch": {
+            "kind": "systemCommand",
+            "commands": [
+              "dlv"
+            ]
+          },
+          "arguments": [
+            "dap"
+          ]
+        },
+        "transport": "tcpAnnounced",
+        "endpoint": {
+          "stream": "stdout",
+          "prefix": "DAP server listening at: ",
+          "value": "hostPort"
+        }
+      }
+    }
+  ],
+  "projectGenerators": [
+    {
+      "id": "go-module",
+      "displayName": "Go",
+      "description": "A Go module built with the go command.",
+      "section": "project",
+      "order": 30,
+      "icon": {
+        "path": "icons/go-project.svg",
+        "mode": "original"
+      },
+      "fields": [
+        {
+          "id": "addSampleCode",
+          "type": "boolean",
+          "title": "Add sample code",
+          "default": true
+        },
+        {
+          "id": "modulePath",
+          "type": "text",
+          "title": "Module path",
+          "description": "The module line of go.mod: the import path other code uses for this module, such as example.com/hello or github.com/you/hello.",
+          "default": "${project.name|lower}",
+          "pattern": "[A-Za-z0-9_~][A-Za-z0-9._~-]*(/[A-Za-z0-9_~][A-Za-z0-9._~-]*)*",
+          "maxLength": 200
+        },
+        {
+          "id": "goVersion",
+          "type": "text",
+          "title": "Go version",
+          "description": "The go line of go.mod: the oldest Go release the module needs. A newer Go builds it too.",
+          "advanced": true,
+          "default": "1.21",
+          "pattern": "1\\.[0-9]+(\\.[0-9]+)?",
+          "maxLength": 16
+        }
+      ],
+      "requirements": [
+        {
+          "languageID": "go"
+        },
+        {
+          "buildSystemID": "go"
+        }
+      ],
+      "steps": [
+        {
+          "kind": "files",
+          "source": "templates/go/module"
+        },
+        {
+          "kind": "files",
+          "source": "templates/go/sample",
+          "when": {
+            "field": "addSampleCode",
+            "equals": true
+          }
+        }
+      ],
+      "openFiles": [
+        {
+          "path": "main.go",
+          "when": {
+            "field": "addSampleCode",
+            "equals": true
+          }
+        },
+        {
+          "path": "go.mod",
+          "when": {
+            "field": "addSampleCode",
+            "equals": false
+          }
+        }
+      ]
     }
   ]
 }

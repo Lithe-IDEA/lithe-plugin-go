@@ -1,0 +1,18 @@
+# Programs and libraries go build writes
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage profiles
+*.test
+*.out
+coverage.*
+
+# Programs Delve builds for a debug session
+__debug_bin*
+
+# Local workspace files
+go.work
+go.work.sum
