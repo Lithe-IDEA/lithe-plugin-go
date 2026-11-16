@@ -27,7 +27,8 @@
 ## go-support-plugin
 
 **能力**：用用户自己的 `gopls` 提供代码智能，缺少 gopls 时可以在插件详情的能力卡片上安装；用声明式 `buildSystems` 识别 Go 模块，在构建窗口里列出包，
-运行 `go build`、`go vet`、`go test` 和 `go run`，列出模块依赖；插件设置调整 `go` 路径和 gopls 选项。
+运行 `go build`、`go vet`、`go test` 和 `go run`，列出模块依赖；插件设置调整 `go` 路径和 gopls 选项；
+`indexingExclusions` 让宿主把排除在索引之外的目录写进 gopls 的 `directoryFilters`。
 没有设置 `go` 路径时，构建用 `toolDefinitions` 里的 `go` 工具定义解析 Go：项目固定的 Go、全局默认、`GOROOT`、
 `PATH` 里的 `go`、在常见位置找到的最新安装。
 
@@ -44,7 +45,8 @@
   确认工具定义找到 `PATH` 里那个 go 的 GOROOT 和版本。
 - `e2e/host/desktop/internal/workbench/official_go_plugin_e2e_test.go`：宿主端到端测试。
 
-**依赖的宿主能力**：`languageServers`（宿主启动 gopls 并转发 `workspace/configuration`）、`buildSystems`
+**依赖的宿主能力**：`languageServers`（宿主启动 gopls 并转发 `workspace/configuration`；`indexingExclusions`
+需要固定了 Lithe-core-rust#68 的桌面端，之前 gopls 的排除目录写死在 Core 里）、`buildSystems`
 （构建窗口识别实例、读取模型、运行命令任务和运行入口、运行测试）、`settings`（插件设置页和设置生效方式）、
 `commandInstallers`（Lithe-core-rust#53，Core c550c2b；宿主在 1lck/Lithe-IDEA#1971 检测缺少的命令并提供安装按钮）。
 宿主 [1lck/Lithe-IDEA@059d878d4](https://github.com/1lck/Lithe-IDEA/blob/059d878d4284e1a1fd218aeaa56c29d9753d4dfa/desktop/internal/pluginhost/pluginhost.go)
