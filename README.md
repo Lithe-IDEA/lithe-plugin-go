@@ -17,7 +17,9 @@
 > 6477e9a 或更新版本的桌面端（[1lck/Lithe-IDEA#1964](https://github.com/1lck/Lithe-IDEA/pull/1964)），
 > 在插件详情里安装 gopls 和 dlv 需要固定了 Core c550c2b 或更新版本、支持 `commandInstallers` 的桌面端
 > （[1lck/Lithe-IDEA#1971](https://github.com/1lck/Lithe-IDEA/pull/1971)）。1.0.1 起作为正式版本发布并收录到 Lithe Store；
-> 没有这些能力的桌面端会从 Store 装到 0.0.1。
+> 没有这些能力的桌面端会从 Store 装到 0.0.1。语言服务器的 `indexingExclusions` 声明需要固定了包含
+> [Lithe-core-rust#68](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/68) 的 Core 的桌面端，
+> 更早的桌面端不认识这个字段，会拒绝整份清单。
 
 ## 功能
 
@@ -151,6 +153,10 @@ darwin 包同时支持 Apple Silicon 和 Intel Mac，windows 包同时支持 Win
 - 运行入口由 Lithe 从模型里的 `main` 包生成：每个带 `application` 标签的包一条，名称是导入路径的最后一段。
 - gopls 由 Lithe 按 `languageServers` 的声明启动，插件设置通过 `workspaceConfiguration` 里的
   `${setting:<id>}` 传给它。
+- 用户排除在索引之外的目录（以及被排除的 Git 忽略目录），由 Lithe 按 `indexingExclusions` 的声明追加到 gopls
+  读到的 `gopls.directoryFilters` 末尾：每个目录写成 `-<相对路径>`，工作区根目录写成 `-`；配置里没有
+  `directoryFilters` 时从 gopls 的默认值 `-**/node_modules` 开始。目录名含 `*`、`?`、`[`、`]`、`{`、`}`
+  的不写入，以免误排除别的目录。排除的目录变化时，正在运行的 gopls 会收到新的配置。
 - Delve 由 Lithe 按 `debugAdapters` 的声明启动为 `dlv dap`。Delve 在标准输出打印
   `DAP server listening at: <地址>`，Lithe 读到这一行后连接这个本机地址（`tcpAnnounced` 传输）。
   调试的包由当前文件所在目录决定（`target.directory` 绑定到 Delve 的 `program`）。

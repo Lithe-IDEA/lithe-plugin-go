@@ -161,6 +161,15 @@
           "usePlaceholders": "${setting:usePlaceholders}",
           "hoverKind": "${setting:hoverKind}"
         }
+      },
+      "indexingExclusions": {
+        "section": "gopls.directoryFilters",
+        "entry": "-${path}",
+        "rootEntry": "-",
+        "default": [
+          "-**/node_modules"
+        ],
+        "pathSyntax": "glob"
       }
     }
   ],
