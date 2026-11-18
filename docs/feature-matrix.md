@@ -132,7 +132,8 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 
 ## go-run-configuration-types
 
-**能力**：Go 构建和 Go 测试两种运行配置类型，出现在「运行/调试配置」的「+」菜单里，名称、说明、字段标题和选项来自插件的中文翻译。
+**能力**：Go 构建和 Go 测试两种运行配置类型，出现在「运行/调试配置」的「+」菜单里，名称、说明、字段标题和选项来自插件的中文翻译，
+图标是插件包里的 Go 地鼠加构建或测试标记（浅色和深色各一份）。
 Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或相对路径）、一个 `.go` 文件或一个目录；Go 测试执行 `go test`
 一个软件包模式（默认 `./...`）或一个目录下的所有软件包（`<目录>/...`），可用“模式”作为 `-run` 过滤。两种都有“Go 工具实参”，
 程序参数、工作目录、环境变量、启动前步骤、存为项目文件和允许多个实例由宿主统一提供。存为项目文件时写进
@@ -146,19 +147,21 @@ Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或�
 **证据**：
 
 - `io.github.lithe-idea.go-support/plugin.json`：`buildSystems` 里 `go` 的 `runConfigurationTypes`（`build`、`test`）和
-  `requires.runConfigurationTypes`；`l10n/zh-Hans.json` 的 `runConfigurationTypes.go`。
+  `requires.runConfigurationTypes`；`l10n/zh-Hans.json` 的 `runConfigurationTypes.go`；两种类型的 `icon`
+  指向 `icons/go-build.svg`、`icons/go-test.svg` 和各自的 `-dark` 文件，出处见 `icons/NOTICE`。
 - `scripts/test.mjs`：按契约的展开规则把两种类型的字段拼成命令，用真实的 go 运行软件包、文件、目录的 Go 构建，
   以及软件包、目录、模式过滤的 Go 测试。
-- `e2e/host/desktop/internal/workbench/official_go_plugin_run_types_e2e_test.go`：宿主端到端测试。
+- `e2e/host/desktop/internal/workbench/official_go_plugin_run_types_e2e_test.go`：宿主端到端测试，包括两种类型都读到包里的浅色和深色图标。
 
 **依赖的宿主能力**：`runConfigurationTypes`（API-29，Core Lithe-core-rust#94 的表单、保存和 `build.runConfigurationPlan`；
-桌面端 1lck/Lithe-IDEA#2148 的「+」菜单、插件字段和翻译、`.lithe/run/plugin/<ID>.toml`、“允许多个实例”）。
+桌面端 1lck/Lithe-IDEA#2148 的「+」菜单、插件字段和翻译、`.lithe/run/plugin/<ID>.toml`、“允许多个实例”）；
+类型图标需要桌面端 1lck/Lithe-IDEA#2169 读取插件包里的图标，更早的桌面端显示按执行类别的通用图标。
 
 **限制**：
 
 - 不能调试：宿主拒绝调试插件声明的运行类型，调试用「调试」窗口的 Go (Delve)。
 - 字段排在宿主的工作目录和环境变量前面，选项是分段按钮而不是下拉框；目录字段不能有默认值，Go 测试的目录不会默认填项目根目录；
-  名称不会按所选软件包自动生成；类型图标按执行类别显示宿主图标，不显示插件包里的 Go 图标。
+  名称不会按所选软件包自动生成。
 - 还没有的字段：输出目录、构建后运行、模拟终端、重定向输入、以 sudo 运行、模块、测试框架、使用所有自定义构建标记。
 
 **最近验证**：2026-11-18，macOS（Apple Silicon），插件 1.1.0 发布包，宿主 `a8797ae`（1lck/Lithe-IDEA main，包含 #2148），
@@ -169,9 +172,15 @@ Go 1.27.4。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPluginRunsGoBuildA
 覆盖文件和目录的 Go 构建、软件包模式的 Go 测试。没有覆盖存为项目文件后重新打开项目、允许多个实例、启动前步骤，
 也没有做下面的手工验收。
 
+类型图标：2026-11-18，macOS（Apple Silicon），本地打包的插件 1.2.0，宿主 `0ffbbd6`（1lck/Lithe-IDEA#2169 分支，
+Core `0a15a98`），Go 1.27.4。`node scripts/e2e-host.mjs` 的三个 workbench 测试和五个 projectgen 测试全部通过；
+`TestOfficialGoPluginRunsGoBuildAndGoTestConfigurations` 另外检查两种类型都读到包里的浅色和深色图标、两套配色不同。
+#2169 合入前 `e2e/host/lithe-host.json` 仍固定在 `a8797ae`，那里没有读取包图标的代码，新增的图标检查无法编译。
+
 **验证方法**（macOS）：
 
-1. 安装插件包，打开含 `go.mod` 的项目，打开「运行/调试配置」点「+」：内置类型之后有 Go 构建和 Go 测试，图标和说明清楚。
+1. 安装插件包，打开含 `go.mod` 的项目，打开「运行/调试配置」点「+」：内置类型之后有 Go 构建和 Go 测试，说明清楚；
+   图标是 Go 地鼠加锤子和 Go 地鼠加测试标记，在浅色和深色外观下都清楚，配置树和标题栏的运行配置列表里也是这两个图标。
 2. 新建 Go 构建：运行种类在软件包、文件、目录间切换时只显示对应的一项；三种分别选 `main` 包、`main.go` 和包目录后运行，
    程序输出显示在 Run 窗口里，程序参数传给程序；Go 工具实参填 `-race` 时命令里带上它。
 3. 新建 Go 测试：默认 `./...` 运行全部测试；改成某个包并填模式后只跑匹配的测试；切到目录后测试这个目录下的所有包；

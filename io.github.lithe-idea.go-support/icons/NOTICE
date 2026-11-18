@@ -1,0 +1,26 @@
+Go Support run configuration icons
+
+go-build.svg, go-build-dark.svg, go-test.svg and go-test-dark.svg are derived
+from icons in JetBrains IntelliJ Community
+(https://github.com/JetBrains/intellij-community), licensed under the Apache
+License, Version 2.0. A copy of the license is in LICENSE-Apache-2.0.txt next to
+this file.
+
+Sources, at intellij-community master d692c46cf35d140f1cde24e8cdaf70cc4e2bd271:
+
+- platform/icons/src/language/go.svg and go_dark.svg
+  (last changed in b3667546dadaf462cc8812e6de88be6d3e76558b)
+  Copyright 2000-2023 JetBrains s.r.o. and contributors.
+- platform/icons/src/expui/build/build.svg and build_dark.svg
+  (last changed in 847c4a60715d4291cd60e95859bfbefa345a8fd8)
+  Copyright 2000-2025 JetBrains s.r.o. and contributors.
+- platform/icons/src/expui/runConfigurations/junitTestMark.svg and
+  junitTestMark_dark.svg
+  (last changed in cd297db5bac1794041266d40e1365e34ce6f990e)
+  Copyright 2000-2023 JetBrains s.r.o. and contributors.
+
+Changes: the Go gopher is scaled down and moved to the lower left, the build
+mark or the test mark is scaled down and moved to the upper right, and each pair
+is combined into one 16x16 icon. The files without a suffix use the colors of
+the light sources and the -dark files use the colors of the _dark sources. The
+paths are otherwise unchanged.

@@ -167,6 +167,17 @@ func TestOfficialGoPluginRunsGoBuildAndGoTestConfigurations(t *testing.T) {
 			t.Fatalf("kind %s = %+v, want %q among %+v", key.Type, kind, want, s.types)
 		}
 	}
+	// Both kinds draw the package's gopher icons in their own colors, the -dark file on a dark
+	// theme, instead of the icon of their execution.
+	for _, key := range []core.RunTypeKey{build, test} {
+		kind := s.runTypeKind(key)
+		light, lightRead := runTypePackageIcon(&h.app.pluginIcons, officialGoPluginID, kind.Icon, false)
+		dark, darkRead := runTypePackageIcon(&h.app.pluginIcons, officialGoPluginID, kind.Icon, true)
+		if !lightRead || !darkRead || len(light.Layers) == 0 || len(dark.Layers) == 0 || light.Layers[0].Fill == dark.Layers[0].Fill {
+			t.Fatalf("kind %s icon %+v: light read %v with %d layers, dark read %v with %d layers; want both package files, colored apart",
+				key.Type, kind.Icon, lightRead, len(light.Layers), darkRead, len(dark.Layers))
+		}
+	}
 
 	// Go Build: the run kind starts on a package; its path and the program arguments run
 	// `go run ./cmd/echo one two`.
