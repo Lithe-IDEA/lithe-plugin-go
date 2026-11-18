@@ -140,7 +140,7 @@ Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或�
 
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
-| macOS | implemented | pending | 需要支持 `runConfigurationTypes` 的桌面端（1lck/Lithe-IDEA#2148，Core Lithe-core-rust#94）；旧宿主不认识这个字段，会拒绝安装本版本 |
+| macOS | implemented | pending | 需要支持 `runConfigurationTypes` 的桌面端 0.8.6 或更新版本（1lck/Lithe-IDEA#2148，Core Lithe-core-rust#94）；Store 给更早的桌面端继续提供 1.0.1 |
 | Windows | implemented | pending | 命令与平台无关，文件和目录以绝对路径传给 `go.exe`；还没有在 Windows 版 Lithe 里跑过 |
 
 **证据**：
@@ -161,7 +161,7 @@ Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或�
   名称不会按所选软件包自动生成；类型图标按执行类别显示宿主图标，不显示插件包里的 Go 图标。
 - 还没有的字段：输出目录、构建后运行、模拟终端、重定向输入、以 sudo 运行、模块、测试框架、使用所有自定义构建标记。
 
-**最近验证**：2026-11-18，macOS（Apple Silicon），插件 2.0.0 发布包，宿主 `a8797ae`（1lck/Lithe-IDEA main，包含 #2148），
+**最近验证**：2026-11-18，macOS（Apple Silicon），插件 1.1.0 发布包，宿主 `a8797ae`（1lck/Lithe-IDEA main，包含 #2148），
 Go 1.27.4。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPluginRunsGoBuildAndGoTestConfigurations`：两种类型以“Go 构建”
 “Go 测试”列出；在对话框里新建 Go 构建，运行种类默认软件包、只显示软件包路径，填 `./cmd/echo` 和程序参数 `one two`
 后运行，输出 `echo: one|two`；新建 Go 测试，切到目录后显示目录、隐藏软件包路径，填项目根目录、模式 `^TestGreet$` 和

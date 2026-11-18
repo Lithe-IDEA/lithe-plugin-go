@@ -6,7 +6,7 @@
     "./internal/workbench": "^TestOfficialGoPlugin(BuildsAndServesAModule|DebugsEachProjectOfAWorkspaceWithDelve|RunsGoBuildAndGoTestConfigurations)$"
   },
   "requiredEnvironment": {
-    "LITHE_TEST_GO_PLUGIN_ARCHIVE": "go-support-<version>-darwin.zip to install, for example dist/go-support-2.0.0-darwin.zip"
+    "LITHE_TEST_GO_PLUGIN_ARCHIVE": "go-support-<version>-darwin.zip to install, for example dist/go-support-1.1.0-darwin.zip"
   },
   "repositoryEnvironment": {
     "LITHE_PLUGIN_GO_DIR": "io.github.lithe-idea.go-support"
