@@ -151,32 +151,36 @@ func awaitBuildModel(t *testing.T, h *harness, p *project, buildSystemID string,
 	return instance
 }
 
-// runConsoleText is the console of the Run window's shown session, which holds the
-// output of the latest execution.
-func runConsoleText(p *project) string {
-	if run := p.activeRun(); run != nil {
-		return run.output.all()
+// awaitExecutionToEnd waits for op to end and returns the console of its Run window session,
+// failing unless it succeeded. Runs execute in parallel, so the execution's own session holds
+// its output and result, not the window's shown session or its last status line.
+func awaitExecutionToEnd(t *testing.T, h *harness, p *project, op *buildOperation, name string, limit time.Duration) string {
+	t.Helper()
+	awaitStateWithin(t, h, limit, "the "+name+" execution", func() bool { return !p.build.owns(op) })
+	session := op.session
+	if session == nil {
+		t.Fatalf("%s has no Run window session", name)
 	}
-	return ""
+	output := session.output.all()
+	if session.outcome != runSucceeded {
+		t.Fatalf("%s did not succeed: outcome=%v summary=%q output=%q", name, session.outcome, session.summary, output)
+	}
+	return output
 }
 
 // runBuildTaskToEnd runs one task of the selected instance and waits for it to end.
 func runBuildTaskToEnd(t *testing.T, h *harness, p *project, projectID, taskID string, limit time.Duration) string {
 	t.Helper()
 	p.build.projectID, p.build.targetID, p.build.taskID = projectID, "", taskID
-	if _, err := h.app.runBuildTask(p, projectID, "", taskID, nil); err != nil {
+	op, err := h.app.runBuildTask(p, projectID, "", taskID, nil)
+	if err != nil {
 		t.Fatalf("start %s: %v", taskID, err)
 	}
-	awaitStateWithin(t, h, limit, "the "+taskID+" task", func() bool { return p.build.operation == nil })
-	output := runConsoleText(p)
-	if p.build.status != h.app.text.Build.Succeeded {
-		t.Fatalf("%s did not succeed: status=%q output=%q", taskID, p.build.status, output)
-	}
-	return output
+	return awaitExecutionToEnd(t, h, p, op, taskID, limit)
 }
 
 // runTargetEntryToEnd runs the target's only command Run entry, as its Run button in the
-// Build window does, waits for the program to exit and returns the window output.
+// Build window does, waits for the program to exit and returns its console.
 func runTargetEntryToEnd(t *testing.T, h *harness, p *project, instance *buildInstance, targetID string, limit time.Duration) string {
 	t.Helper()
 	entries := buildTargetRunEntries(instance, targetID)
@@ -185,15 +189,11 @@ func runTargetEntryToEnd(t *testing.T, h *harness, p *project, instance *buildIn
 	}
 	entry := entries[0]
 	h.app.runBuildEntry(p, entry.ID)
-	if p.build.operation == nil {
+	op := p.build.runOf("entry:" + instance.ID + "/" + entry.ID)
+	if op == nil {
 		t.Fatalf("run %s did not start", entry.Name)
 	}
-	awaitStateWithin(t, h, limit, "the "+entry.Name+" run", func() bool { return p.build.operation == nil })
-	output := runConsoleText(p)
-	if p.build.status != h.app.text.Build.Succeeded {
-		t.Fatalf("run %s did not succeed: status=%q output=%q", entry.Name, p.build.status, output)
-	}
-	return output
+	return awaitExecutionToEnd(t, h, p, op, entry.Name, limit)
 }
 
 func modelProjectNamed(model core.BuildModel, name string) *core.BuildProject {

@@ -2,13 +2,14 @@
 
 为 [Lithe](https://github.com/1lck/Lithe-IDEA) 提供 Go 支持：用你电脑上的 `gopls` 提供代码智能，
 用声明式构建系统接口（`buildSystems`）识别 Go 模块，在构建窗口里列出包，运行 `go build`、`go vet`、
-`go test` 和 `go run`，查看模块依赖；用你电脑上的 Delve（`dlv`）调试，在「新建项目」里创建 Go 模块。
+`go test` 和 `go run`，查看模块依赖；在「运行/调试配置」里新建 Go 构建和 Go 测试配置；用你电脑上的 Delve（`dlv`）调试，
+在「新建项目」里创建 Go 模块。
 这是一个**社区插件**，按插件契约 v0 编写。插件只有一份 `plugin.json` 和几份项目模板，不附带任何可执行文件，
 也没有后端进程。
 
 > English: Go support for Lithe — code intelligence through your own `gopls`, the Go Modules build system
 > (package model, build, vet, test, run and the module list) through the declarative `buildSystems` contract,
-> debugging through your own Delve, and a Go module entry in New Project.
+> Go Build and Go Test run configurations, debugging through your own Delve, and a Go module entry in New Project.
 > The plugin is a `plugin.json` and a few project templates, with no executables and no backend process.
 
 > **兼容性**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
@@ -19,7 +20,10 @@
 > （[1lck/Lithe-IDEA#1971](https://github.com/1lck/Lithe-IDEA/pull/1971)）。1.0.1 起作为正式版本发布并收录到 Lithe Store；
 > 没有这些能力的桌面端会从 Store 装到 0.0.1。语言服务器的 `indexingExclusions` 声明需要固定了包含
 > [Lithe-core-rust#68](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/68) 的 Core 的桌面端，
-> 更早的桌面端不认识这个字段，会拒绝整份清单。
+> 更早的桌面端不认识这个字段，会拒绝整份清单。2.0.0 的 Go 构建和 Go 测试运行配置需要支持插件声明运行配置类型的桌面端
+> （[1lck/Lithe-IDEA#2148](https://github.com/1lck/Lithe-IDEA/pull/2148)，固定了
+> [Lithe-core-rust#94](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/94) 的 Core），还没有桌面端发布版本包含它，
+> 所以 2.0.0 是预发布版本；更早的桌面端会拒绝安装 2.0.0，继续用 Store 里的 1.0.1。
 
 ## 功能
 
@@ -30,6 +34,7 @@
 | 构建 | Build（`go build ./...`）作用于模块；Vet（`go vet`）可作用于模块或单个包 |
 | 运行 | 每个 `main` 包在构建窗口里有「运行 <包名>」按钮，执行 `go run <导入路径>`，输出显示在构建输出里 |
 | 测试 | `go test` 作用于模块或单个包，可用 `-run` 只跑一个测试；输出显示在构建输出里，插件不提供测试报告文件 |
+| 运行配置 | 「运行/调试配置」的「+」里有 Go 构建（`go run` 一个软件包、文件或目录）和 Go 测试（`go test` 一个软件包或目录，可按模式过滤），可存为项目文件、允许多个实例，见下文“运行配置” |
 | 诊断 | 把 `文件:行:列: 消息` 形式的编译输出显示为问题 |
 | 依赖 | `go list -m -json all` 列出模块依赖（含版本和是否间接依赖） |
 | 同步 | `go.mod`、`go.sum`、`go.work` 变化后重新读取模块 |
@@ -89,6 +94,36 @@
 - Delve 在包所在的目录生成名为 `__debug_bin…` 的临时程序，会话结束时自己删除；新建项目生成的 `.gitignore`
   已经忽略它。
 - 目前只支持启动调试（launch），不支持附加到运行中的进程，也不支持调试测试。
+
+## 运行配置
+
+打开「运行/调试配置」，点「+」，选 **Go 构建** 或 **Go 测试**。名称、存为项目文件、允许多个实例、程序参数、
+工作目录、环境变量和启动前步骤由 Lithe 统一提供，下面是插件自己的字段：
+
+**Go 构建**：执行 `go run [Go 工具实参] <要运行的内容> [程序参数]`，程序输出显示在 Run 窗口里。
+
+| 字段 | 说明 |
+| --- | --- |
+| 运行种类 | 软件包、文件或目录，决定下面显示哪一项，默认是软件包 |
+| 软件包路径 | main 软件包的导入路径（如 `example.com/app/cmd/server`），或相对工作目录的路径（如 `./cmd/server`） |
+| 文件 | main 软件包里的一个 `.go` 文件，`go run` 只构建这个文件 |
+| 目录 | main 软件包所在的目录 |
+| Go 工具实参 | 放在要运行的内容前面传给 `go run`，例如 `-mod=vendor`、`-race` |
+
+**Go 测试**：执行 `go test [Go 工具实参] [-run <模式>] <软件包或目录> [程序参数]`。
+
+| 字段 | 说明 |
+| --- | --- |
+| 测试种类 | 目录或软件包，默认是软件包 |
+| 软件包路径 | 导入路径，或相对工作目录的软件包模式，默认 `./...`（工作目录下的所有软件包） |
+| 目录 | 测试这个目录及其子目录里的所有软件包（传给 go 的是 `<目录>/...`） |
+| 模式 | 要运行的测试的正则表达式，作为 `-run` 传入，例如 `^TestName$`；留空运行所有测试 |
+| Go 工具实参 | 放在软件包前面传给 `go test`，例如 `-v`、`-count=1` |
+
+文件和目录在项目里存为相对项目根目录的路径，运行时传给 go 的是绝对路径。存为项目文件的配置写在
+`.lithe/run/plugin/io.github.lithe-idea.go-support.toml`，可以提交到仓库。两种配置用的 `go` 和构建窗口相同
+（见上文“工具链”），构建选项里的 Build Tags 和 Race Detector 也会加进命令。目前还不能调试这两种配置，
+调试请用「调试」窗口。
 
 ## 新建项目
 
@@ -213,7 +248,7 @@ CI 在 macOS、Windows x64 和 Windows ARM64 上跑这个脚本，Windows 上测
 
 ```bash
 node scripts/package.mjs
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.0.1-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-2.0.0-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -239,7 +274,8 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`，以及依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；`v1.0.1` 起作为正式版本发布。
+   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0`，以及依赖宿主 #2148 的 `v2.0.0`；
+   `v1.0.1` 是正式版本。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 
