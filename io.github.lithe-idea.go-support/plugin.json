@@ -2,7 +2,7 @@
   "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "pluginAPIVersion": 0,
   "requires": {
     "buildSystems": 0,
@@ -11,6 +11,7 @@
     "languageServers": 0,
     "languages": 0,
     "projectGenerators": 0,
+    "runConfigurationTypes": 0,
     "settings": 0,
     "toolDefinitions": 0
   },
@@ -334,6 +335,168 @@
             "run",
             "${optionArguments}",
             "${target.name}"
+          ]
+        }
+      ],
+      "runConfigurationTypes": [
+        {
+          "id": "build",
+          "displayName": "Go Build",
+          "description": "Builds and runs a Go package, file or directory with go run.",
+          "icon": {
+            "path": "icons/go.svg",
+            "mode": "original"
+          },
+          "fields": [
+            {
+              "id": "runKind",
+              "title": "Run kind",
+              "kind": "choice",
+              "default": "package",
+              "choices": [
+                {
+                  "value": "package",
+                  "title": "Package"
+                },
+                {
+                  "value": "file",
+                  "title": "File"
+                },
+                {
+                  "value": "directory",
+                  "title": "Directory"
+                }
+              ]
+            },
+            {
+              "id": "package",
+              "title": "Package path",
+              "description": "The import path of a main package, or a path relative to the working directory such as ./cmd/server.",
+              "kind": "text",
+              "placeholder": "example.com/app/cmd/server",
+              "required": true,
+              "visibleWhen": {
+                "field": "runKind",
+                "equals": "package"
+              }
+            },
+            {
+              "id": "file",
+              "title": "File",
+              "description": "A .go file of a main package; go run builds only this file.",
+              "kind": "file",
+              "required": true,
+              "visibleWhen": {
+                "field": "runKind",
+                "equals": "file"
+              }
+            },
+            {
+              "id": "directory",
+              "title": "Directory",
+              "description": "The directory of a main package.",
+              "kind": "directory",
+              "required": true,
+              "visibleWhen": {
+                "field": "runKind",
+                "equals": "directory"
+              }
+            },
+            {
+              "id": "goToolArguments",
+              "title": "Go tool arguments",
+              "description": "Passed to go run before the package, such as -mod=vendor.",
+              "kind": "arguments"
+            }
+          ],
+          "arguments": [
+            "run",
+            "${optionArguments}",
+            "${field:goToolArguments}",
+            "${field:package}",
+            "${field:file}",
+            "${field:directory}",
+            "${userArguments}"
+          ]
+        },
+        {
+          "id": "test",
+          "displayName": "Go Test",
+          "description": "Runs go test on a package or on every package below a directory.",
+          "icon": {
+            "path": "icons/go.svg",
+            "mode": "original"
+          },
+          "execution": "task",
+          "fields": [
+            {
+              "id": "testKind",
+              "title": "Test kind",
+              "kind": "choice",
+              "default": "package",
+              "choices": [
+                {
+                  "value": "directory",
+                  "title": "Directory"
+                },
+                {
+                  "value": "package",
+                  "title": "Package"
+                }
+              ]
+            },
+            {
+              "id": "package",
+              "title": "Package path",
+              "description": "An import path or a package pattern relative to the working directory; ./... tests every package below it.",
+              "kind": "text",
+              "default": "./...",
+              "required": true,
+              "visibleWhen": {
+                "field": "testKind",
+                "equals": "package"
+              }
+            },
+            {
+              "id": "directory",
+              "title": "Directory",
+              "description": "Tests every package in this directory and below it.",
+              "kind": "directory",
+              "required": true,
+              "visibleWhen": {
+                "field": "testKind",
+                "equals": "directory"
+              },
+              "arguments": [
+                "${value}/..."
+              ]
+            },
+            {
+              "id": "pattern",
+              "title": "Pattern",
+              "description": "A regular expression of the tests to run, passed as -run; empty runs every test.",
+              "kind": "text",
+              "placeholder": "^TestName$",
+              "arguments": [
+                "-run",
+                "${value}"
+              ]
+            },
+            {
+              "id": "goToolArguments",
+              "title": "Go tool arguments",
+              "description": "Passed to go test before the package, such as -v or -count=1.",
+              "kind": "arguments"
+            }
+          ],
+          "arguments": [
+            "test",
+            "${optionArguments}",
+            "${field:goToolArguments}",
+            "${field:pattern}",
+            "${field:package}",
+            "${field:directory}",
+            "${userArguments}"
           ]
         }
       ],

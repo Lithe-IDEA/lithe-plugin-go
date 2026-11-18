@@ -22,6 +22,7 @@
 | --- | --- | --- | --- | --- |
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
+| `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-18 macOS 宿主端到端测试通过（宿主 a8797ae）；Windows 只有命令层面的 `scripts/test.mjs` |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -127,6 +128,58 @@ Go 1.27.4、Delve 1.27.2。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPlu
 5. 调试 `cmd/<名字>` 这样的子包：打开该包里的文件后开始，调试的是这个包；再调试一个没有 `go.mod`、
    由两个文件组成的目录，两个文件一起构建。
 6. 没有 `dlv` 时，插件详情「功能」页的调试器卡片显示“未找到 dlv”和安装按钮；安装后开始调试能停在断点。
+7. 整个过程中插件安装目录不被写入。
+
+## go-run-configuration-types
+
+**能力**：Go 构建和 Go 测试两种运行配置类型，出现在「运行/调试配置」的「+」菜单里，名称、说明、字段标题和选项来自插件的中文翻译。
+Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或相对路径）、一个 `.go` 文件或一个目录；Go 测试执行 `go test`
+一个软件包模式（默认 `./...`）或一个目录下的所有软件包（`<目录>/...`），可用“模式”作为 `-run` 过滤。两种都有“Go 工具实参”，
+程序参数、工作目录、环境变量、启动前步骤、存为项目文件和允许多个实例由宿主统一提供。存为项目文件时写进
+`.lithe/run/plugin/io.github.lithe-idea.go-support.toml`。
+
+| 平台 | 实现 | 验证 | 说明 |
+| --- | --- | --- | --- |
+| macOS | implemented | pending | 需要支持 `runConfigurationTypes` 的桌面端（1lck/Lithe-IDEA#2148，Core Lithe-core-rust#94）；旧宿主不认识这个字段，会拒绝安装本版本 |
+| Windows | implemented | pending | 命令与平台无关，文件和目录以绝对路径传给 `go.exe`；还没有在 Windows 版 Lithe 里跑过 |
+
+**证据**：
+
+- `io.github.lithe-idea.go-support/plugin.json`：`buildSystems` 里 `go` 的 `runConfigurationTypes`（`build`、`test`）和
+  `requires.runConfigurationTypes`；`l10n/zh-Hans.json` 的 `runConfigurationTypes.go`。
+- `scripts/test.mjs`：按契约的展开规则把两种类型的字段拼成命令，用真实的 go 运行软件包、文件、目录的 Go 构建，
+  以及软件包、目录、模式过滤的 Go 测试。
+- `e2e/host/desktop/internal/workbench/official_go_plugin_run_types_e2e_test.go`：宿主端到端测试。
+
+**依赖的宿主能力**：`runConfigurationTypes`（API-29，Core Lithe-core-rust#94 的表单、保存和 `build.runConfigurationPlan`；
+桌面端 1lck/Lithe-IDEA#2148 的「+」菜单、插件字段和翻译、`.lithe/run/plugin/<ID>.toml`、“允许多个实例”）。
+
+**限制**：
+
+- 不能调试：宿主拒绝调试插件声明的运行类型，调试用「调试」窗口的 Go (Delve)。
+- 字段排在宿主的工作目录和环境变量前面，选项是分段按钮而不是下拉框；目录字段不能有默认值，Go 测试的目录不会默认填项目根目录；
+  名称不会按所选软件包自动生成；类型图标按执行类别显示宿主图标，不显示插件包里的 Go 图标。
+- 还没有的字段：输出目录、构建后运行、模拟终端、重定向输入、以 sudo 运行、模块、测试框架、使用所有自定义构建标记。
+
+**最近验证**：2026-11-18，macOS（Apple Silicon），插件 2.0.0 发布包，宿主 `a8797ae`（1lck/Lithe-IDEA main，包含 #2148），
+Go 1.27.4。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPluginRunsGoBuildAndGoTestConfigurations`：两种类型以“Go 构建”
+“Go 测试”列出；在对话框里新建 Go 构建，运行种类默认软件包、只显示软件包路径，填 `./cmd/echo` 和程序参数 `one two`
+后运行，输出 `echo: one|two`；新建 Go 测试，切到目录后显示目录、隐藏软件包路径，填项目根目录、模式 `^TestGreet$` 和
+`-v -count=1` 后运行，只跑了 TestGreet；两条配置都写进插件的运行文档，安装目录逐字节不变。`scripts/test.mjs` 另外用真实的 go
+覆盖文件和目录的 Go 构建、软件包模式的 Go 测试。没有覆盖存为项目文件后重新打开项目、允许多个实例、启动前步骤，
+也没有做下面的手工验收。
+
+**验证方法**（macOS）：
+
+1. 安装插件包，打开含 `go.mod` 的项目，打开「运行/调试配置」点「+」：内置类型之后有 Go 构建和 Go 测试，图标和说明清楚。
+2. 新建 Go 构建：运行种类在软件包、文件、目录间切换时只显示对应的一项；三种分别选 `main` 包、`main.go` 和包目录后运行，
+   程序输出显示在 Run 窗口里，程序参数传给程序；Go 工具实参填 `-race` 时命令里带上它。
+3. 新建 Go 测试：默认 `./...` 运行全部测试；改成某个包并填模式后只跑匹配的测试；切到目录后测试这个目录下的所有包；
+   测试失败时 Run 窗口显示失败和非零退出码。
+4. 勾选存为项目文件后，`.lithe/run/plugin/io.github.lithe-idea.go-support.toml` 里有这条配置；关闭并重新打开项目后配置还在，
+   文件和目录字段仍指向原来的路径。
+5. 勾选允许多个实例后连续运行两次，Run 窗口有两个标签；不勾选时第二次运行先停掉第一次。
+6. 在构建选项里设 Build Tags 后运行两种配置，命令带上 `-tags`。
 7. 整个过程中插件安装目录不被写入。
 
 ## go-project-generator

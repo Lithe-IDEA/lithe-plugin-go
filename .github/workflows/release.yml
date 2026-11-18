@@ -39,7 +39,10 @@ jobs:
           # desktop release has yet.
           # v1.0.1 adds the Windows archive on top of 1.0.0 and needs the same host,
           # but is published as a stable release so the Store tracker lists it.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0
+          # v2.0.0 declares buildSystems runConfigurationTypes (1lck/Lithe-IDEA#2148,
+          # Lithe-core-rust#94), which no desktop release has yet (desktop-v0.8.5
+          # pins Core 5c48a67, before #94).
+          PRERELEASE_TAGS: v0.0.1 v1.0.0 v2.0.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do

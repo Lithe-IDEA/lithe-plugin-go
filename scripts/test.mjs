@@ -2,7 +2,8 @@
 // Runs the commands plugin.json declares with the real go, the way Lithe runs
 // them, on a module rendered from the project templates under a path with a
 // space: the version probe, the model and dependency commands (decoded as JSON
-// streams), the build, vet and filtered test tasks, the directories the
+// streams), the build, vet and filtered test tasks, the Go Build and Go Test
+// run configuration types with their fields filled in, the directories the
 // command installers read from `go env`, and the managed installs of gopls and
 // dlv into a GOBIN of their own. The installed programs are then found the
 // way Lithe finds a system command (on PATH, so gopls.exe on Windows), gopls
@@ -48,6 +49,35 @@ function expand(list, { target, testCase } = {}) {
     return [value
       .replaceAll("${target.name}", target ?? "")
       .replaceAll("${test.case:regex}", (testCase ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))];
+  });
+}
+
+/**
+ * Expands a declared run configuration type the way Core plans a saved
+ * configuration of it: a field passes nothing while hidden or empty, a field
+ * with arguments passes them with `${value}` replaced (a checkbox when
+ * checked), a field without them passes its value, which is an absolute path
+ * for a file or directory and a list for an arguments field. No option has a
+ * value.
+ */
+function expandRunType(type, values, userArguments = []) {
+  const valueOf = (field) => values[field.id] ?? field.default;
+  const shown = (field) => !field.visibleWhen
+    || valueOf(type.fields.find((entry) => entry.id === field.visibleWhen.field)) === field.visibleWhen.equals;
+  const passed = (field) => {
+    const value = valueOf(field);
+    if (!shown(field) || value === undefined || value === "" || value === false) return [];
+    if (field.kind === "arguments") return value;
+    if (!field.arguments) return [value];
+    return field.arguments.map((argument) => argument.replaceAll("${value}", value));
+  };
+  return type.arguments.flatMap((argument) => {
+    if (argument === "${optionArguments}") return [];
+    if (argument === "${userArguments}") return userArguments;
+    const field = argument.match(/^\$\{field:([A-Za-z0-9]+)\}$/);
+    if (field) return passed(type.fields.find((entry) => entry.id === field[1]));
+    assert.doesNotMatch(argument, /\$\{/, `the test does not expand ${argument}`);
+    return [argument];
   });
 }
 
@@ -142,6 +172,45 @@ try {
   await check("a filtered test run runs only the selected case", () => {
     const output = run(go, expand(buildSystem.test.arguments, { target: "lithe-demo/greet", testCase: "TestGreet" }), { cwd: root });
     assert.match(output, /^ok\s+lithe-demo\/greet/m);
+  });
+
+  const runType = (id) => buildSystem.runConfigurationTypes.find((entry) => entry.id === id);
+  // A second program that prints its arguments, for the program arguments.
+  mkdirSync(join(root, "cmd", "echo"), { recursive: true });
+  writeFileSync(join(root, "cmd", "echo", "main.go"), [
+    "package main", "", 'import (\n\t"fmt"\n\t"os"\n\t"strings"\n)', "",
+    'func main() { fmt.Println("echo:", strings.Join(os.Args[1:], "|")) }', "",
+  ].join("\n"));
+
+  await check("Go Build runs a package by import path or relative path, with the program arguments", () => {
+    const build = runType("build");
+    assert.match(run(go, expandRunType(build, { package: "lithe-demo" }), { cwd: root }), /^Hello, Gopher!$/m);
+    const output = run(go, expandRunType(build, { package: "./cmd/echo", goToolArguments: ["-mod=mod"] }, ["one two", "three"]), { cwd: root });
+    assert.match(output, /^echo: one two\|three$/m);
+  });
+
+  await check("Go Build runs a file and a directory given as absolute paths", () => {
+    const build = runType("build");
+    const file = expandRunType(build, { runKind: "file", package: "./cmd/echo", file: join(root, "main.go") });
+    assert.deepEqual(file, ["run", join(root, "main.go")], "the hidden package field passes nothing");
+    assert.match(run(go, file, { cwd: root }), /^Hello, Gopher!$/m);
+    const directory = expandRunType(build, { runKind: "directory", directory: join(root, "cmd", "echo") }, ["x"]);
+    assert.match(run(go, directory, { cwd: root }), /^echo: x$/m);
+  });
+
+  await check("Go Test runs the selected tests of a package and of every package below a directory", () => {
+    const test = runType("test");
+    const pattern = "^TestGreet$";
+    const output = run(go, expandRunType(test, { package: "./greet", pattern, goToolArguments: ["-v", "-count=1"] }), { cwd: root });
+    assert.match(output, /^--- PASS: TestGreet/m);
+    assert.doesNotMatch(output, /TestOther/, "the pattern leaves TestOther out");
+    const byDirectory = expandRunType(test, { testKind: "directory", directory: root, pattern });
+    assert.equal(byDirectory.at(-1), `${root}/...`);
+    assert.match(run(go, byDirectory, { cwd: root }), /^ok\s+lithe-demo\/greet/m);
+  });
+
+  await check("Go Test with the default package and no pattern runs every test", () => {
+    assert.throws(() => run(go, expandRunType(runType("test"), { goToolArguments: ["-count=1"] }), { cwd: root }), /--- FAIL: TestOther/);
   });
 
   await check("the installers' default directories come from go env", () => {

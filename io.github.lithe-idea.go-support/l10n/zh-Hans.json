@@ -31,5 +31,70 @@
   },
   "sections": {
     "Go toolchain": "Go 工具链"
+  },
+  "runConfigurationTypes": {
+    "go": {
+      "build": {
+        "displayName": "Go 构建",
+        "description": "用 go run 构建并运行一个 Go 软件包、文件或目录。",
+        "fields": {
+          "runKind": {
+            "title": "运行种类",
+            "options": {
+              "package": "软件包",
+              "file": "文件",
+              "directory": "目录"
+            }
+          },
+          "package": {
+            "title": "软件包路径",
+            "description": "main 软件包的导入路径，或相对工作目录的路径，例如 ./cmd/server。",
+            "placeholder": "example.com/app/cmd/server"
+          },
+          "file": {
+            "title": "文件",
+            "description": "main 软件包里的一个 .go 文件；go run 只构建这个文件。"
+          },
+          "directory": {
+            "title": "目录",
+            "description": "main 软件包所在的目录。"
+          },
+          "goToolArguments": {
+            "title": "Go 工具实参",
+            "description": "放在软件包前传给 go run，例如 -mod=vendor。"
+          }
+        }
+      },
+      "test": {
+        "displayName": "Go 测试",
+        "description": "对一个软件包，或一个目录下的所有软件包运行 go test。",
+        "fields": {
+          "testKind": {
+            "title": "测试种类",
+            "options": {
+              "directory": "目录",
+              "package": "软件包"
+            }
+          },
+          "package": {
+            "title": "软件包路径",
+            "description": "导入路径，或相对工作目录的软件包模式；./... 测试它下面的所有软件包。"
+          },
+          "directory": {
+            "title": "目录",
+            "description": "测试这个目录及其子目录里的所有软件包。"
+          },
+          "pattern": {
+            "title": "模式",
+            "description": "要运行的测试的正则表达式，作为 -run 传入；留空运行所有测试。",
+            "placeholder": "^TestName$"
+          },
+          "goToolArguments": {
+            "title": "Go 工具实参",
+            "description": "放在软件包前传给 go test，例如 -v 或 -count=1。"
+          }
+        }
+      }
+    }
   }
 }
