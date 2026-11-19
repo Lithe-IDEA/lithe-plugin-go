@@ -26,11 +26,12 @@ gopls、go 和 dlv 仍然用你电脑上的。
 > [Lithe-core-rust#94](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/94) 的 Core），桌面端 0.8.6 起包含它。
 > 1.1.0 作为正式版本发布并收录到 Lithe Store；Store 按版本的 `requires` 给更早的桌面端继续提供 1.0.1。
 > 1.2.0 的 Go 构建和 Go 测试类型图标需要能读取插件包图标的桌面端（[1lck/Lithe-IDEA#2169](https://github.com/1lck/Lithe-IDEA/pull/2169)），
-> 作为预发布版本发布；桌面端 0.8.6 也能安装它，只是显示通用图标。
+> 桌面端 0.8.7 起包含它；桌面端 0.8.6 也能安装 1.2.0，只是显示通用图标。
 > 1.3.0 在 Go 语言设置页和 Go 构建系统页加了插件自己画的预览区域（`settingRegions`），需要支持插件视图的桌面端
 > （[1lck/Lithe-IDEA#2183](https://github.com/1lck/Lithe-IDEA/pull/2183)，固定了
-> [Lithe-core-rust#104](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/104) 的 Core），还没有桌面端版本包含它，
-> 所以作为预发布版本发布、不进 Store。
+> [Lithe-core-rust#104](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/104) 的 Core），桌面端 0.8.7 起包含它。
+> 1.2.0 和 1.3.0 都作为正式版本发布并收录到 Lithe Store。桌面端 0.8.6 也支持 `ui` 0 和 `backend` 0，
+> Store 按 `requires` 挡不住它，但它不认识 `settingRegions`，安装或更新到 1.3.0 会失败，需要先把桌面端更新到 0.8.7 或更新版本。
 
 ## 功能
 
@@ -286,8 +287,9 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 、图标依赖宿主 #2169 的 `v1.2.0` 和设置预览依赖宿主 #2183 的 `v1.3.0`；
-   `v1.0.1` 和 `v1.1.0` 是正式版本。
+   目前是只能装进新版桌面端的 `v0.0.1` 和依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；
+   `v1.0.1`、`v1.1.0`、`v1.2.0` 和 `v1.3.0` 是正式版本。`v1.2.0` 和 `v1.3.0` 先以预发布发布，
+   桌面端 0.8.7 带上它们依赖的 #2169 和 #2183 后改为正式版本。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 

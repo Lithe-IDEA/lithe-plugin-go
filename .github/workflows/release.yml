@@ -82,11 +82,10 @@ jobs:
           # Lithe-core-rust#94), which desktop 0.8.6 is the first release to ship.
           # It is published as a stable release so the Store tracker lists it; the
           # Store index records its requires and keeps older hosts on 1.0.1.
-          # v1.3.0 adds a backend that draws the settings regions (settingRegions,
-          # requires backend 0 and ui 0), which needs the host's plugin views
-          # (1lck/Lithe-IDEA#2183, pinning Lithe-core-rust#104) that no desktop
-          # release has yet.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.2.0 v1.3.0
+          # v1.2.0 (type icons, 1lck/Lithe-IDEA#2169) and v1.3.0 (settings regions,
+          # 1lck/Lithe-IDEA#2183) were published as pre-releases and switched to
+          # stable once desktop 0.8.7 shipped both host changes.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do
