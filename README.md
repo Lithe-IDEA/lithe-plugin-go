@@ -4,13 +4,14 @@
 用声明式构建系统接口（`buildSystems`）识别 Go 模块，在构建窗口里列出包，运行 `go build`、`go vet`、
 `go test` 和 `go run`，查看模块依赖；在「运行/调试配置」里新建 Go 构建和 Go 测试配置；用你电脑上的 Delve（`dlv`）调试，
 在「新建项目」里创建 Go 模块。
-这是一个**社区插件**，按插件契约 v0 编写。插件只有一份 `plugin.json` 和几份项目模板，不附带任何可执行文件，
-也没有后端进程。
+这是一个**社区插件**，按插件契约 v0 编写。插件包含一份 `plugin.json`、几份项目模板，和一个只画设置页预览的小后端（Rust 编写）；
+gopls、go 和 dlv 仍然用你电脑上的。
 
 > English: Go support for Lithe — code intelligence through your own `gopls`, the Go Modules build system
 > (package model, build, vet, test, run and the module list) through the declarative `buildSystems` contract,
 > Go Build and Go Test run configurations, debugging through your own Delve, and a Go module entry in New Project.
-> The plugin is a `plugin.json` and a few project templates, with no executables and no backend process.
+> The plugin is a `plugin.json`, a few project templates and a small Rust backend that only draws the settings
+> previews; gopls, go and dlv stay your own.
 
 > **兼容性**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
 > （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。1.0.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
@@ -26,6 +27,10 @@
 > 1.1.0 作为正式版本发布并收录到 Lithe Store；Store 按版本的 `requires` 给更早的桌面端继续提供 1.0.1。
 > 1.2.0 的 Go 构建和 Go 测试类型图标需要能读取插件包图标的桌面端（[1lck/Lithe-IDEA#2169](https://github.com/1lck/Lithe-IDEA/pull/2169)），
 > 作为预发布版本发布；桌面端 0.8.6 也能安装它，只是显示通用图标。
+> 1.3.0 在 Go 语言设置页和 Go 构建系统页加了插件自己画的预览区域（`settingRegions`），需要支持插件视图的桌面端
+> （[1lck/Lithe-IDEA#2183](https://github.com/1lck/Lithe-IDEA/pull/2183)，固定了
+> [Lithe-core-rust#104](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/104) 的 Core），还没有桌面端版本包含它，
+> 所以作为预发布版本发布、不进 Store。
 
 ## 功能
 
@@ -43,6 +48,7 @@
 | 调试 | 「调试」窗口里选 Go (Delve)，调试当前打开的 `.go` 文件所在的包：断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台 |
 | 新建项目 | 「新建项目」里的 Go：选择 GOROOT，生成 `go.mod`、`.gitignore`，可选生成示例 `main.go`；模块路径默认是小写的项目名，Go 版本默认是所选 Go 的版本 |
 | 工具链 | 在常见位置找到电脑上的 Go 安装；项目可以固定用其中一个构建和运行 |
+| 设置预览 | Go 语言设置页顶部的预览画出悬停文档、参数占位符、gofumpt 格式化和 Staticcheck 分析在编辑器里的效果；Go 构建系统页画出 Lithe 查找 go 的顺序和当前用的是哪一步。改了还没应用的选项会先在预览里显示，并标出“含未应用的修改” |
 
 ## 设置和构建选项
 
@@ -176,7 +182,7 @@ go install github.com/go-delve/delve/cmd/dlv@latest
 ## 安装
 
 1. 从 [Releases](https://github.com/Lithe-IDEA/lithe-plugin-go/releases) 下载对应平台的包：macOS 用 `go-support-<版本>-darwin.zip`，
-   Windows 用 `go-support-<版本>-windows.zip`。
+   Windows x64 用 `go-support-<版本>-windows-x64.zip`，Windows ARM64 用 `go-support-<版本>-windows-arm64.zip`。
 2. 在 Lithe 中打开 **设置 → 插件**，点击页面标题栏右侧的 **从文件安装…**，选中这个 zip，核对 SHA-256 和权限后确认。
 3. 打开含 `go.mod` 的项目。构建窗口会出现 Go Modules，打开 `.go` 文件时启动 gopls。
 
@@ -215,17 +221,20 @@ Delve 也由 Lithe 启动：每次调试的适配器启动结果（解析、启�
 
 ## 本地打包
 
-需要 Node.js 22+ 和 `zip`（在 macOS 或 Linux 上打包）：
+先构建画设置预览的后端，需要 Rust 工具链和对应的 target（`rustup target add`）：macOS 上构建 darwin（Apple Silicon 和 Intel
+合成一个通用二进制并做 ad-hoc 签名），Windows 上构建 windows-x64 和 windows-arm64。再用 Node.js 22+ 和 `zip`（macOS 或 Linux）打包：
 
 ```bash
-node scripts/package.mjs
+node scripts/build-backend.mjs darwin          # 写到 .artifacts/backend-darwin/
+node scripts/package.mjs --platforms darwin    # CI 和发布时三个平台都打
 ```
 
-输出 `dist/go-support-<版本>-darwin.zip`、字节相同的 `dist/go-support-<版本>-windows.zip` 和它们的 SHA-256。本地开发时，用 **设置 → 插件 → 从文件安装…**
+输出 `dist/go-support-<版本>-<平台>.zip` 和它们的 SHA-256。每个包带 `bin/backend`（Windows 是 `bin/backend.exe`，
+包里的 `plugin.json` 相应改写启动路径）和列出后端所用 crate 许可证的 `THIRD_PARTY_LICENSES.txt`。本地开发时，用 **设置 → 插件 → 从文件安装…**
 选择这个 zip 安装。
 
 ```bash
-node --test scripts/package/*.test.mjs   # 核对 Windows 包
+node --test scripts/package/*.test.mjs   # 核对 dist/ 里的每个包
 node scripts/test.mjs                     # 用真实的 go、gopls、dlv 跑清单里的命令
 ```
 
@@ -249,8 +258,9 @@ CI 在 macOS、Windows x64 和 Windows ARM64 上跑这个脚本，Windows 上测
 需要 Node.js 22+、Go、Rust 工具链（构建宿主固定的 Rust Core）、`git`，以及测试要用的 `go`、`gopls` 和 `dlv`：
 
 ```bash
-node scripts/package.mjs
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.1.0-darwin.zip" node scripts/e2e-host.mjs
+node scripts/build-backend.mjs darwin
+node scripts/package.mjs --platforms darwin
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.0-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -276,7 +286,7 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 和图标依赖宿主 #2169 的 `v1.2.0`；
+   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 、图标依赖宿主 #2169 的 `v1.2.0` 和设置预览依赖宿主 #2183 的 `v1.3.0`；
    `v1.0.1` 和 `v1.1.0` 是正式版本。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。

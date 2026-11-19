@@ -9,7 +9,43 @@ permissions:
   contents: read
 
 jobs:
+  # The backend that draws the settings regions, built for each archive on the
+  # system that links it: a universal binary on macOS, x64 and ARM64 (cross-built
+  # with the MSVC ARM64 tools) on Windows.
+  backend:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin
+            os: macos-latest
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+          - platform: windows-x64
+            os: windows-latest
+            targets: x86_64-pc-windows-msvc
+          - platform: windows-arm64
+            os: windows-latest
+            targets: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the Rust targets
+        shell: bash
+        run: rustup target add ${{ matrix.targets }}
+      - name: Build the backend
+        run: node scripts/build-backend.mjs ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.platform }}
+          path: .artifacts/backend-${{ matrix.platform }}
+          if-no-files-found: error
+
   package:
+    needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,15 +53,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check manifest and build the archive
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: backend-*
+          path: .artifacts
+      - name: Check manifest and build the archives
         run: node scripts/package.mjs
       - name: Verify release archives
         run: node --test --test-timeout=60000 scripts/package/*.test.mjs
-      - name: Hand the Windows archive to the command jobs
+      - name: Hand the Windows archives to the command jobs
         uses: actions/upload-artifact@v4
         with:
           name: go-support-windows
-          path: dist/go-support-*-windows.zip
+          path: dist/go-support-*-windows-*.zip
           if-no-files-found: error
       - name: Validate against Lithe Store rules
         run: |
@@ -45,8 +85,8 @@ jobs:
           "
 
   # The declared commands with the real go, gopls and dlv, on each platform the
-  # packages serve. Windows runs the Windows archive, unpacked under a path with
-  # a space the way Lithe installs it.
+  # packages serve. Windows runs the Windows archive of its architecture,
+  # unpacked under a path with a space the way Lithe installs it.
   commands:
     needs: package
     runs-on: ${{ matrix.os }}
@@ -73,7 +113,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $archive = Get-ChildItem "$env:RUNNER_TEMP\archive\go-support-*-windows.zip" | Select-Object -First 1
+          $arch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'arm64' } else { 'x64' }
+          $archive = Get-ChildItem "$env:RUNNER_TEMP\archive\go-support-*-windows-$arch.zip" | Select-Object -First 1
           $plugins = Join-Path $env:RUNNER_TEMP "Lithe Plugins"
           Expand-Archive -Path $archive.FullName -DestinationPath $plugins
           "LITHE_TEST_PLUGIN_DIR=$plugins\io.github.lithe-idea.go-support" | Out-File $env:GITHUB_ENV -Append -Encoding utf8

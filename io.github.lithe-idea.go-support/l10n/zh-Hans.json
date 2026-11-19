@@ -32,6 +32,14 @@
   "sections": {
     "Go toolchain": "Go 工具链"
   },
+  "settingRegions": {
+    "language": {
+      "keywords": ["悬停", "补全", "参数占位符", "格式化", "静态检查", "效果预览"]
+    },
+    "toolchain": {
+      "keywords": ["Go 程序", "工具链", "查找顺序"]
+    }
+  },
   "runConfigurationTypes": {
     "go": {
       "build": {

@@ -1,0 +1,26 @@
+[package]
+name = "go-support-backend"
+description = "The Go Support plugin's backend: the previews its settings regions draw."
+# Kept equal to the plugin's version; scripts/package.mjs refuses a mismatch.
+version = "1.3.0"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.87"
+publish = false
+
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
+[dependencies]
+# The Rust plugin SDK has no release tag yet; this is Lithe-core-rust main with
+# the plugin views contract (Lithe-core-rust#104), the Core that host
+# 1lck/Lithe-IDEA#2183 pins.
+lithe-plugin-sdk = { git = "https://github.com/Lithe-IDEA/Lithe-core-rust", rev = "545ca11fb971795a9937f0f60bcc29afebe3b8be" }
+serde_json = "1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "s"

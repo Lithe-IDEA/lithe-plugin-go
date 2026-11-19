@@ -13,7 +13,42 @@ permissions:
   contents: write
 
 jobs:
+  # The settings regions' backend for each archive, built as CI builds it.
+  backend:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - platform: darwin
+            os: macos-latest
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+          - platform: windows-x64
+            os: windows-latest
+            targets: x86_64-pc-windows-msvc
+          - platform: windows-arm64
+            os: windows-latest
+            targets: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the Rust targets
+        shell: bash
+        run: rustup target add ${{ matrix.targets }}
+      - name: Build the backend
+        run: node scripts/build-backend.mjs ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.platform }}
+          path: .artifacts/backend-${{ matrix.platform }}
+          if-no-files-found: error
+
   release:
+    needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,6 +56,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: backend-*
+          path: .artifacts
       - name: Build archives
         run: |
           set -o pipefail
@@ -43,7 +82,11 @@ jobs:
           # Lithe-core-rust#94), which desktop 0.8.6 is the first release to ship.
           # It is published as a stable release so the Store tracker lists it; the
           # Store index records its requires and keeps older hosts on 1.0.1.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.2.0
+          # v1.3.0 adds a backend that draws the settings regions (settingRegions,
+          # requires backend 0 and ui 0), which needs the host's plugin views
+          # (1lck/Lithe-IDEA#2183, pinning Lithe-core-rust#104) that no desktop
+          # release has yet.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.2.0 v1.3.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do
