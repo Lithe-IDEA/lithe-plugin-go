@@ -23,7 +23,7 @@
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
 | `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 只有命令层面的 `scripts/test.mjs` |
-| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
+| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（本地 1.4.0 包，宿主 312a9c63a，即 1lck/Lithe-IDEA#2191 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -257,34 +257,48 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
   设置了 `go` 路径时只有这一步“使用中”，其余“不使用”。
 
 两个区域都读设置窗口里还没应用的草稿，草稿和已保存的值不同时预览先变、并标出“含未应用的修改”。画面中英文跟随设置窗口的语言，
-浅色和深色外观用宿主的颜色标记或成对颜色。后端只读设置，不启动 gopls、go 或 dlv，也不写插件目录。
+浅色和深色外观用宿主的颜色标记或成对颜色；点亮的标签（“开”“一行”等）在选中底色上用 `$text` 写字，深色外观下也清楚。
+后端只读设置，不启动 gopls、go 或 dlv，也不写插件目录。
+
+1.4.0 起场景按视图事件里的 `width` 排版：语言页放得下两张最窄的卡片（宽度至少 594）时两张一行，否则一张一行，卡片随宽度变宽，
+文字和代码保持原来的字号；构建系统页的步骤卡片随宽度变宽。画布声明 `on: ["resize"]`，窗口宽度稳定后宿主发 `resize`，
+后端按新宽度重画。事件里没有 `width` 时按最窄设置窗口的区域宽度画（语言页 610、构建系统页 340），也不声明 `resize`，和 1.3.0 相同。
 
 **证据**：
 
 - `io.github.lithe-idea.go-support/plugin.json`：`settingRegions` 的 `language`、`toolchain`，`backend.launch`，`requires` 的 `backend: 0`、`ui: 0`，
   权限 `backend.launch`、`ui.contribute`。
-- `backend/src/`：视图函数和场景；`cargo test --locked` 检查每个场景在两种语言下都在契约限制内、宽度与区域一致，
+- `backend/src/`：视图函数和场景；`cargo test --locked` 检查每个场景在两种语言、各个宽度下都在契约限制内、viewBox 宽度等于事件宽度、
+  卡片内容不超出卡片，两张一行只在放得下两张最窄卡片时出现，没有宽度时退回最窄窗口的排版且不声明 `resize`，
   以及各设置对预览的影响。CI 不跑 `cargo test`，只构建后端。
 - `e2e/host/desktop/internal/workbench/official_go_plugin_settings_view_e2e_test.go`：经设置窗口自己的设置来源启动安装包里的后端，
-  用中英文打开两个区域并发草稿事件，由 Core 校验每次回答。
+  用中英文打开两个区域并发草稿事件，事件带区域宽度，由 Core 校验每次回答；检查 viewBox 宽度等于区域宽度、画布高度放得下 viewBox、
+  不写 `pan` 并声明 `resize`；再以 760 的宽度发 `resize`，检查按新宽度重画且草稿标记仍在。
 
-**依赖的宿主能力**：插件视图和设置区域（1lck/Lithe-IDEA#2183，Core Lithe-core-rust#104），桌面端 0.8.7 起包含。桌面端 0.8.6 同样支持 `ui` 0 和 `backend` 0，Store 按 `requires` 挡不住它，但它不认识 `settingRegions`，装 1.3.0 会失败。画布不写 `pan` 时宿主按
-`min(宽/viewBox 宽, 高/viewBox 高)` 从左上角缩放（#2183 的 34afcaf11）；场景按设置窗口最窄时区域的宽度画（语言页 610、构建系统页 340），
-宽窗口里原样显示。
+**依赖的宿主能力**：插件视图和设置区域（1lck/Lithe-IDEA#2183，Core Lithe-core-rust#104），桌面端 0.8.7 起包含。桌面端 0.8.6 同样支持 `ui` 0 和 `backend` 0，Store 按 `requires` 挡不住它，但它不认识 `settingRegions`，装 1.3.0 及更新版本会失败。
+按宽度排版和 `resize` 需要视图事件带 `width` 的宿主（1lck/Lithe-IDEA#2191，固定 Core Lithe-core-rust#109），还没有桌面端版本包含：
+这种宿主量好区域宽度才发 `open`，宽度稳定 400 ms 后给声明了 `resize` 的画布发 `resize`，画布不写 `pan` 时按
+`min(宽/viewBox 宽, 高/viewBox 高)` 从左上角显示整个 viewBox。桌面端 0.8.7、0.8.8 不发宽度，并按“区域宽/viewBox 宽”缩放画布，
+宽窗口里画面跟着放大、下方被画布高度裁掉；1.4.0 在这两个版本上和 1.3.0 相同。
 
 **限制**：代码按 SF Mono 的 7pt 字宽一个字符一个节点排版，选区、光标、输入框和波浪线才能对准字符；Windows 上 Consolas 的字更窄，
-代码间距会比宿主自己画的略宽。
+代码间距会比宿主自己画的略宽。文字宽度按字号估算，不是宿主量出来的；卡片窄时较长的说明和诊断用省略号截断。
 
-**最近验证**：2026-11-19，macOS（Apple Silicon），`go-support-1.3.0-darwin.zip` 发布包，宿主 `d87f114`（桌面端 0.8.8，包含 #2183）。
-`TestOfficialGoPluginDrawsItsSettingsRegions` 通过：后端由宿主启动，两个区域在中英文下各画出一张画布，viewBox 宽度分别是 610 和 340，
-标题和标签是对应语言，草稿让预览标出未应用的修改、让构建系统页的 `go` 路径一步变成“使用中”，安装目录的文件不变。
-另用宿主无头界面在最小宽度（900）和较宽窗口（1300）下截了中英文、浅色和深色、默认值和全部开启的 32 张图检查排版。没有做手工验收。
+**最近验证**：2026-11-19，macOS（Apple Silicon），本地构建的 `go-support-1.4.0-darwin.zip`（未发布），宿主 `312a9c63a`
+（1lck/Lithe-IDEA#2191 的分支提交，固定 Core `0b6da27`）。`TestOfficialGoPluginDrawsItsSettingsRegions` 通过：后端由宿主启动，
+两个区域在中英文下按宿主给的区域宽度各画出一张画布，声明 `resize`、不写 `pan`，标题和标签是对应语言，草稿让预览标出未应用的修改、
+让构建系统页的 `go` 路径一步变成“使用中”；以 760 的宽度发 `resize` 后按新宽度重画，草稿标记仍在；安装目录的文件不变。
+同一次运行里另外三个 workbench 测试和五个 projectgen 测试也通过。另把后端画出的场景放进宿主无头界面（设置窗口的浅色和深色配色）截图：
+语言页 330、610、900，构建系统页 344、700，中英文、默认值和全部开启，共 40 张，没有裁切和重叠，深色下点亮的标签文字清楚。
+此前同一天 1.3.0 发布包在桌面端 0.8.8（`d87f114`）上通过同一测试。没有做手工验收。
 
 **验证方法**（macOS）：
 
-1. 安装插件包，打开「设置 › 语言 › Go」：顶部出现四张预览卡片，浅色和深色外观下文字和代码都清楚，窗口拉宽时不被裁掉。
+1. 用包含 #2191 的桌面端安装插件包，打开「设置 › 语言 › Go」：顶部出现四张预览卡片，浅色和深色外观下文字、代码和点亮的标签都清楚。
+   拖宽、拖窄设置窗口，停下后预览按新宽度重新排版：放得下时两张一行，窄了一张一行，字号不变，不放大也不被裁掉。
 2. 改悬停文档、参数占位符、gofumpt、Staticcheck，先不点应用：对应卡片立刻变化，标出“含未应用的修改”；点应用后标记消失。
 3. 打开「设置 › 构建、执行、部署 › 构建工具 › Go」：预览列出查找 go 的顺序；填 `go` 路径后这一步变成“使用中”，其余“不使用”。
+   拖宽窗口后步骤卡片跟着变宽，较长的 `go` 路径显示得更多。
 4. 界面语言换成中文，两个预览都显示中文。
 
 ## Windows 安装包

@@ -1,14 +1,16 @@
 //! The Go language page's preview: what each gopls option does to a piece of
 //! code, in four cards that follow the rows below them.
 //!
-//! The scene is drawn for the region's width in the smallest settings
-//! window, 613 points as measured in the host, so a unit is a point there.
-//! The code in the editor-like boxes is laid out on the scene's own
-//! monospace grid, so the marks on it line up in every host font.
+//! The scene is as wide as the view the host reports, so a unit is a point:
+//! the cards stand two to a row when two of the narrowest fit, else one above
+//! the other, and widen with the window. A host that reports no width gets
+//! the scene for the region in the smallest settings window, 613 points as
+//! measured in the host. The code in the editor-like boxes is laid out on the
+//! scene's own monospace grid, so the marks on it line up in every host font.
 
 use crate::scene::{
-    code, column, group, pair, path, pill, rect, runs, squiggle, text, token, Node,
-    MONO_ADVANCE,
+    code, column, group, pair, path, pill, rect, runs, squiggle, text, text_width, token, Node,
+    MONO_ADVANCE, STRONG,
 };
 use crate::settings::{Hover, Settings};
 use crate::words::Words;
@@ -19,22 +21,65 @@ pub const CANVAS_ID: &str = "gopls-preview";
 /// The settings the cards show; a draft of any of them marks the preview.
 pub const SETTINGS: [&str; 4] = ["hoverKind", "usePlaceholders", "gofumpt", "staticcheck"];
 
-pub const WIDTH: f64 = 610.0;
+/// The scene's width for a host that reports none.
+pub const DEFAULT_WIDTH: f64 = 610.0;
+/// The narrowest card: the longest Staticcheck line and its squiggle end 256
+/// units into the box, and the pill keeps room beside the longest title. A
+/// view narrower than one such card is scaled down by the host.
+pub const MIN_CARD_W: f64 = 292.0;
 const HEADER: f64 = 28.0;
 const GAP: f64 = 10.0;
-const CARD_W: f64 = (WIDTH - GAP) / 2.0;
 /// A card's title row, the line under it that says what the value does, and
 /// the editor-like box below them.
 const TITLE_Y: f64 = 22.0;
 const NOTE_Y: f64 = 41.0;
 const BOX_X: f64 = 10.0;
 const BOX_Y: f64 = 50.0;
-const BOX_W: f64 = CARD_W - 2.0 * BOX_X;
-/// The box heights of the first row (hover, completion) and the second
-/// (gofumpt, Staticcheck): the hover's full documentation needs the most.
+/// The box heights of the hover and completion cards and of the gofumpt and
+/// Staticcheck ones: the hover's full documentation needs the most.
 const BOX_H: [f64; 2] = [124.0, 108.0];
 const CARD_H: [f64; 2] = [BOX_Y + BOX_H[0] + BOX_X, BOX_Y + BOX_H[1] + BOX_X];
-pub const HEIGHT: f64 = HEADER + CARD_H[0] + GAP + CARD_H[1];
+
+/// Where the four cards go in a scene of a given width.
+pub struct Layout {
+    pub width: f64,
+    /// Two when two of the narrowest cards fit side by side, else one.
+    pub columns: usize,
+    card_w: f64,
+}
+
+impl Layout {
+    pub fn new(width: Option<f64>) -> Self {
+        let width = width.unwrap_or(DEFAULT_WIDTH).max(MIN_CARD_W);
+        let columns = if width >= 2.0 * MIN_CARD_W + GAP { 2 } else { 1 };
+        let card_w = (width - (columns - 1) as f64 * GAP) / columns as f64;
+        Self {
+            width,
+            columns,
+            card_w,
+        }
+    }
+
+    fn box_w(&self) -> f64 {
+        self.card_w - 2.0 * BOX_X
+    }
+
+    /// The top-left corner of each card, row after row, and the scene's
+    /// height under the last row. The cards of a row are one height: the
+    /// hover and completion ones, or the gofumpt and Staticcheck ones.
+    fn places(&self) -> ([(f64, f64); 4], f64) {
+        let mut places = [(0.0, 0.0); 4];
+        let mut y = HEADER;
+        for (index, place) in places.iter_mut().enumerate() {
+            let column = index % self.columns;
+            if index > 0 && column == 0 {
+                y += CARD_H[(index - 1) / 2] + GAP;
+            }
+            *place = (column as f64 * (self.card_w + GAP), y);
+        }
+        (places, y + CARD_H[1])
+    }
+}
 
 /// Code colors after the IDE themes Lithe's editor follows.
 fn keyword() -> Value {
@@ -72,12 +117,17 @@ struct Card<'a> {
     preview: Vec<Node>,
 }
 
-pub fn canvas(settings: &Settings, words: &Words) -> Value {
+/// The preview for a view `width` points wide, or for the smallest settings
+/// window when the host reports no width. A host that reports it sends
+/// `resize` with the new width, and the scene is drawn again for it.
+pub fn canvas(settings: &Settings, words: &Words, width: Option<f64>) -> Value {
+    let layout = Layout::new(width);
+    let box_w = layout.box_w();
     let changed = settings.any_changed(&SETTINGS);
     let mut nodes = vec![
         text(0.0, 17.0, words.preview_title, "strong"),
         text(
-            WIDTH,
+            layout.width,
             17.0,
             if changed {
                 words.includes_draft
@@ -87,7 +137,8 @@ pub fn canvas(settings: &Settings, words: &Words) -> Value {
             "caption",
         )
         .align("end")
-        .color(token(if changed { "$accent" } else { "$textMuted" })),
+        .color(token(if changed { "$accent" } else { "$textMuted" }))
+        .max_width(layout.width - text_width(words.preview_title, STRONG) - 16.0),
     ];
     let hover = Hover::ALL
         .iter()
@@ -111,7 +162,7 @@ pub fn canvas(settings: &Settings, words: &Words) -> Value {
             lit: true,
             note: words.hover_notes[hover],
             changed: settings.is_changed("hoverKind"),
-            preview: hover_preview(settings.hover),
+            preview: hover_preview(settings.hover, box_w),
         },
         Card {
             title: words.completion_title,
@@ -119,7 +170,7 @@ pub fn canvas(settings: &Settings, words: &Words) -> Value {
             lit: settings.placeholders,
             note: placeholders_note,
             changed: settings.is_changed("usePlaceholders"),
-            preview: completion_preview(settings.placeholders, words),
+            preview: completion_preview(settings.placeholders, words, box_w),
         },
         Card {
             title: words.format_title,
@@ -127,7 +178,7 @@ pub fn canvas(settings: &Settings, words: &Words) -> Value {
             lit: settings.gofumpt,
             note: gofumpt_note,
             changed: settings.is_changed("gofumpt"),
-            preview: format_preview(settings.gofumpt),
+            preview: format_preview(settings.gofumpt, box_w),
         },
         Card {
             title: words.staticcheck_title,
@@ -135,39 +186,42 @@ pub fn canvas(settings: &Settings, words: &Words) -> Value {
             lit: settings.staticcheck,
             note: staticcheck_note,
             changed: settings.is_changed("staticcheck"),
-            preview: staticcheck_preview(settings.staticcheck),
+            preview: staticcheck_preview(settings.staticcheck, box_w),
         },
     ];
-    for (index, card) in cards.into_iter().enumerate() {
-        let row = index / 2;
-        let x = (index % 2) as f64 * (CARD_W + GAP);
-        let y = HEADER + row as f64 * (CARD_H[0] + GAP);
-        nodes.push(group(x, y, draw(card, row)));
+    let (places, height) = layout.places();
+    for (index, (card, (x, y))) in cards.into_iter().zip(places).enumerate() {
+        nodes.push(group(x, y, draw(card, index / 2, layout.card_w)));
     }
-    json!({
+    let mut canvas = json!({
         "type": "canvas",
         "id": CANVAS_ID,
         "label": words.preview_label,
-        "height": HEIGHT.ceil() as u64,
-        "viewBox": [0, 0, WIDTH, HEIGHT],
+        "height": height.ceil() as u64,
+        "viewBox": [0, 0, layout.width, height],
         "nodes": nodes.into_iter().map(Value::from).collect::<Vec<_>>(),
-    })
+    });
+    if width.is_some() {
+        canvas["on"] = json!(["resize"]);
+    }
+    canvas
 }
 
-/// A card in row `row`: its title, a pill with the value shown and, when
-/// that value is a draft, an accent outline and a dot in front of the pill;
-/// the line saying what the value does; then the preview in an editor-like
-/// box.
-fn draw(card: Card, row: usize) -> Vec<Node> {
+/// A card `card_w` wide whose box is `BOX_H[kind]` tall: its title, a pill
+/// with the value shown and, when that value is a draft, an accent outline
+/// and a dot in front of the pill; the line saying what the value does; then
+/// the preview in an editor-like box. A lit pill writes in `$text`: accent ink
+/// on the selection fill falls to about 2:1 in Lithe's dark theme.
+fn draw(card: Card, kind: usize, card_w: f64) -> Vec<Node> {
     let (fill, ink) = if card.lit {
-        (token("$selection"), token("$accent"))
+        (token("$selection"), token("$text"))
     } else {
         (token("$badge"), token("$textSecondary"))
     };
     let (_, width) = pill(0.0, 0.0, card.value, fill.clone(), ink.clone());
-    let pill_x = CARD_W - 12.0 - width;
+    let pill_x = card_w - 12.0 - width;
     let (pill, _) = pill(pill_x, 8.0, card.value, fill, ink);
-    let frame = rect(0.0, 0.0, CARD_W, CARD_H[row])
+    let frame = rect(0.0, 0.0, card_w, CARD_H[kind])
         .radius(8.0)
         .fill(token("$surface"));
     let mut nodes = vec![
@@ -180,8 +234,8 @@ fn draw(card: Card, row: usize) -> Vec<Node> {
         pill,
         text(12.0, NOTE_Y, card.note, "caption")
             .color(token("$textSecondary"))
-            .max_width(CARD_W - 24.0),
-        rect(BOX_X, BOX_Y, BOX_W, BOX_H[row])
+            .max_width(card_w - 24.0),
+        rect(BOX_X, BOX_Y, card_w - 2.0 * BOX_X, BOX_H[kind])
             .radius(6.0)
             .fill(editor())
             .stroke(token("$line"), 1.0),
@@ -197,14 +251,14 @@ fn draw(card: Card, row: usize) -> Vec<Node> {
     nodes
 }
 
-/// A hover over `strings.Split`, with as much documentation as `hover` shows.
-/// The documentation is Go's own, which gopls shows as it is, wrapped to the
-/// popup.
-fn hover_preview(hover: Hover) -> Vec<Node> {
+/// A hover over `strings.Split` in a box `box_w` wide, with as much
+/// documentation as `hover` shows. The documentation is Go's own, which gopls
+/// shows as it is, wrapped to the popup.
+fn hover_preview(hover: Hover, box_w: f64) -> Vec<Node> {
     const POPUP_X: f64 = 4.0;
-    const POPUP_W: f64 = BOX_W - 2.0 * POPUP_X;
     const INSET: f64 = 9.0;
-    const TEXT_W: f64 = POPUP_W - 2.0 * INSET;
+    let popup_w = box_w - 2.0 * POPUP_X;
+    let text_w = popup_w - 2.0 * INSET;
     let code_x = 10.0;
     let signature = || {
         runs(
@@ -224,9 +278,9 @@ fn hover_preview(hover: Hover) -> Vec<Node> {
     let doc = |y: f64, line: &str| {
         text(INSET, y, line, "caption")
             .color(token("$textSecondary"))
-            .max_width(TEXT_W)
+            .max_width(text_w)
     };
-    let divider = || rect(INSET, 21.0, TEXT_W, 1.0).fill(token("$line"));
+    let divider = || rect(INSET, 21.0, text_w, 1.0).fill(token("$line"));
     let synopsis = || {
         [
             doc(34.0, "Split slices s into all substrings separated"),
@@ -257,11 +311,11 @@ fn hover_preview(hover: Hover) -> Vec<Node> {
                 "func strings.Split(s string, sep string) []string",
                 "caption",
             )
-            .max_width(TEXT_W)],
+            .max_width(text_w)],
         ),
         Hover::Signature => (22.0, vec![signature()]),
     };
-    let mut frame = vec![rect(0.0, 0.0, POPUP_W, height)
+    let mut frame = vec![rect(0.0, 0.0, popup_w, height)
         .radius(6.0)
         .fill(popup())
         .stroke(token("$line"), 1.0)
@@ -285,17 +339,18 @@ fn hover_preview(hover: Hover) -> Vec<Node> {
     nodes
 }
 
-/// Completing `strings.Spl`, with and without parameter placeholders.
-fn completion_preview(placeholders: bool, words: &Words) -> Vec<Node> {
+/// Completing `strings.Spl` in a box `box_w` wide, with and without
+/// parameter placeholders.
+fn completion_preview(placeholders: bool, words: &Words, box_w: f64) -> Vec<Node> {
     let code_x = 10.0;
     let label = |y: f64, words: &str| {
         text(code_x, y, words, "caption")
             .color(token("$textMuted"))
-            .max_width(BOX_W - 2.0 * code_x)
+            .max_width(box_w - 2.0 * code_x)
     };
     let caret = |x: f64, y: f64| rect(x, y - 10.5, 1.2, 13.0).fill(plain());
     let list_x = column(code_x, 9);
-    let list_w = BOX_W - list_x - 10.0;
+    let list_w = box_w - list_x - 10.0;
     let mut nodes = vec![label(17.0, words.before)];
     nodes.extend(code(code_x, 35.0, &[("parts := strings.Spl", plain())]));
     nodes.extend([
@@ -387,9 +442,9 @@ fn numbered(lines: Vec<Vec<(&str, Value)>>) -> Vec<Node> {
     nodes
 }
 
-/// The same function as gofmt and as gofumpt format it; what gofumpt changes
-/// is tinted.
-fn format_preview(gofumpt: bool) -> Vec<Node> {
+/// The same function as gofmt and as gofumpt format it, in a box `box_w`
+/// wide; what gofumpt changes is tinted.
+fn format_preview(gofumpt: bool, box_w: f64) -> Vec<Node> {
     let signature = vec![
         ("func ", keyword()),
         ("save", function()),
@@ -414,7 +469,7 @@ fn format_preview(gofumpt: bool) -> Vec<Node> {
     }
     let mut nodes = vec![
         // The line the blank one closed up into, and the new octal literal.
-        rect(0.0, CODE_TOP + LINE - 12.0, BOX_W, LINE)
+        rect(0.0, CODE_TOP + LINE - 12.0, box_w, LINE)
             .fill(token("$success"))
             .opacity(0.08),
         rect(column(CODE_X, 23) - 2.0, CODE_TOP + LINE - 12.0, 5.0 * MONO_ADVANCE + 4.0, LINE)
@@ -427,8 +482,8 @@ fn format_preview(gofumpt: bool) -> Vec<Node> {
 }
 
 /// A comparison staticcheck's SA6005 reports and gopls's default analyses
-/// do not. The message is staticcheck's own.
-fn staticcheck_preview(staticcheck: bool) -> Vec<Node> {
+/// do not, in a box `box_w` wide. The message is staticcheck's own.
+fn staticcheck_preview(staticcheck: bool, box_w: f64) -> Vec<Node> {
     let mut nodes = numbered(vec![
         vec![
             ("func ", keyword()),
@@ -466,7 +521,7 @@ fn staticcheck_preview(staticcheck: bool) -> Vec<Node> {
             .stroke(token("$warning"), 1.0),
         );
     }
-    let bar_w = BOX_W - 12.0;
+    let bar_w = box_w - 12.0;
     nodes.push(group(
         6.0,
         CODE_TOP + 3.0 * LINE + 10.0,
@@ -491,4 +546,33 @@ fn staticcheck_preview(staticcheck: bool) -> Vec<Node> {
         ],
     ));
     nodes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scene::CAPTION;
+    use crate::words;
+
+    #[test]
+    fn every_title_keeps_its_room_beside_its_pill_in_the_narrowest_card() {
+        for language in ["en", "zh-Hans"] {
+            let words = words::for_language(language);
+            let hover = words
+                .hover_options
+                .iter()
+                .map(|value| (words.hover_title, *value));
+            let switches = [words.completion_title, words.format_title, words.staticcheck_title]
+                .into_iter()
+                .flat_map(|title| [(title, words.on), (title, words.off)]);
+            for (title, value) in hover.chain(switches) {
+                // As `draw` places them: the pill 12 units from the card's
+                // right edge, the title from 12 units and 18 short of the pill.
+                let pill_x = MIN_CARD_W - 12.0 - (text_width(value, CAPTION) + 16.0);
+                let room = pill_x - 12.0 - 18.0;
+                let title_w = text_width(title, STRONG);
+                assert!(title_w <= room, "{language}: {title} ({title_w}) beside {value} ({room})");
+            }
+        }
+    }
 }
