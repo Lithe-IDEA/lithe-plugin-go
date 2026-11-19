@@ -23,7 +23,7 @@
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
 | `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 只有命令层面的 `scripts/test.mjs` |
-| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（本地 1.4.0 包，宿主 312a9c63a，即 1lck/Lithe-IDEA#2191 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
+| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（本地 1.3.1 包，宿主 312a9c63a，即 1lck/Lithe-IDEA#2191 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -260,7 +260,7 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 浅色和深色外观用宿主的颜色标记或成对颜色；点亮的标签（“开”“一行”等）在选中底色上用 `$text` 写字，深色外观下也清楚。
 后端只读设置，不启动 gopls、go 或 dlv，也不写插件目录。
 
-1.4.0 起场景按视图事件里的 `width` 排版：语言页放得下两张最窄的卡片（宽度至少 594）时两张一行，否则一张一行，卡片随宽度变宽，
+1.3.1 起场景按视图事件里的 `width` 排版：语言页放得下两张最窄的卡片（宽度至少 594）时两张一行，否则一张一行，卡片随宽度变宽，
 文字和代码保持原来的字号；构建系统页的步骤卡片随宽度变宽。画布声明 `on: ["resize"]`，窗口宽度稳定后宿主发 `resize`，
 后端按新宽度重画。事件里没有 `width` 时按最窄设置窗口的区域宽度画（语言页 610、构建系统页 340），也不声明 `resize`，和 1.3.0 相同。
 
@@ -279,12 +279,12 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 按宽度排版和 `resize` 需要视图事件带 `width` 的宿主（1lck/Lithe-IDEA#2191，固定 Core Lithe-core-rust#109），还没有桌面端版本包含：
 这种宿主量好区域宽度才发 `open`，宽度稳定 400 ms 后给声明了 `resize` 的画布发 `resize`，画布不写 `pan` 时按
 `min(宽/viewBox 宽, 高/viewBox 高)` 从左上角显示整个 viewBox。桌面端 0.8.7、0.8.8 不发宽度，并按“区域宽/viewBox 宽”缩放画布，
-宽窗口里画面跟着放大、下方被画布高度裁掉；1.4.0 在这两个版本上和 1.3.0 相同。
+宽窗口里画面跟着放大、下方被画布高度裁掉；1.3.1 在这两个版本上和 1.3.0 相同。
 
 **限制**：代码按 SF Mono 的 7pt 字宽一个字符一个节点排版，选区、光标、输入框和波浪线才能对准字符；Windows 上 Consolas 的字更窄，
 代码间距会比宿主自己画的略宽。文字宽度按字号估算，不是宿主量出来的；卡片窄时较长的说明和诊断用省略号截断。
 
-**最近验证**：2026-11-19，macOS（Apple Silicon），本地构建的 `go-support-1.4.0-darwin.zip`（未发布），宿主 `312a9c63a`
+**最近验证**：2026-11-19，macOS（Apple Silicon），本地构建的 `go-support-1.3.1-darwin.zip`，宿主 `312a9c63a`
 （1lck/Lithe-IDEA#2191 的分支提交，固定 Core `0b6da27`）。`TestOfficialGoPluginDrawsItsSettingsRegions` 通过：后端由宿主启动，
 两个区域在中英文下按宿主给的区域宽度各画出一张画布，声明 `resize`、不写 `pan`，标题和标签是对应语言，草稿让预览标出未应用的修改、
 让构建系统页的 `go` 路径一步变成“使用中”；以 760 的宽度发 `resize` 后按新宽度重画，草稿标记仍在；安装目录的文件不变。
