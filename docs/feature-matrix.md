@@ -22,8 +22,8 @@
 | --- | --- | --- | --- | --- |
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
-| `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-18 macOS 宿主端到端测试通过（宿主 a8797ae）；Windows 只有命令层面的 `scripts/test.mjs` |
-| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（宿主 34afcaf11，1lck/Lithe-IDEA#2183）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
+| `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 只有命令层面的 `scripts/test.mjs` |
+| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -156,7 +156,7 @@ Go 构建按“运行种类”执行 `go run` 一个软件包（导入路径或�
 
 **依赖的宿主能力**：`runConfigurationTypes`（API-29，Core Lithe-core-rust#94 的表单、保存和 `build.runConfigurationPlan`；
 桌面端 1lck/Lithe-IDEA#2148 的「+」菜单、插件字段和翻译、`.lithe/run/plugin/<ID>.toml`、“允许多个实例”）；
-类型图标需要桌面端 1lck/Lithe-IDEA#2169 读取插件包里的图标，更早的桌面端显示按执行类别的通用图标。
+类型图标需要桌面端 0.8.7 或更新版本（1lck/Lithe-IDEA#2169）读取插件包里的图标，桌面端 0.8.6 显示按执行类别的通用图标。
 
 **限制**：
 
@@ -176,7 +176,8 @@ Go 1.27.4。`node scripts/e2e-host.mjs` 通过 `TestOfficialGoPluginRunsGoBuildA
 类型图标：2026-11-18，macOS（Apple Silicon），本地打包的插件 1.2.0，宿主 `0ffbbd6`（1lck/Lithe-IDEA#2169 分支，
 Core `0a15a98`），Go 1.27.4。`node scripts/e2e-host.mjs` 的三个 workbench 测试和五个 projectgen 测试全部通过；
 `TestOfficialGoPluginRunsGoBuildAndGoTestConfigurations` 另外检查两种类型都读到包里的浅色和深色图标、两套配色不同。
-#2169 合入前 `e2e/host/lithe-host.json` 仍固定在 `a8797ae`，那里没有读取包图标的代码，新增的图标检查无法编译。
+2026-11-19 `e2e/host/lithe-host.json` 改固定到桌面端 0.8.8 的 `d87f114` 后，用 1.3.0 发布包重跑，四个 workbench 测试和五个 projectgen
+测试全部通过，图标检查也在其中。
 
 **验证方法**（macOS）：
 
@@ -267,14 +268,14 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 - `e2e/host/desktop/internal/workbench/official_go_plugin_settings_view_e2e_test.go`：经设置窗口自己的设置来源启动安装包里的后端，
   用中英文打开两个区域并发草稿事件，由 Core 校验每次回答。
 
-**依赖的宿主能力**：插件视图和设置区域（1lck/Lithe-IDEA#2183，Core Lithe-core-rust#104）。画布不写 `pan` 时宿主按
+**依赖的宿主能力**：插件视图和设置区域（1lck/Lithe-IDEA#2183，Core Lithe-core-rust#104），桌面端 0.8.7 起包含。桌面端 0.8.6 同样支持 `ui` 0 和 `backend` 0，Store 按 `requires` 挡不住它，但它不认识 `settingRegions`，装 1.3.0 会失败。画布不写 `pan` 时宿主按
 `min(宽/viewBox 宽, 高/viewBox 高)` 从左上角缩放（#2183 的 34afcaf11）；场景按设置窗口最窄时区域的宽度画（语言页 610、构建系统页 340），
 宽窗口里原样显示。
 
 **限制**：代码按 SF Mono 的 7pt 字宽一个字符一个节点排版，选区、光标、输入框和波浪线才能对准字符；Windows 上 Consolas 的字更窄，
 代码间距会比宿主自己画的略宽。
 
-**最近验证**：2026-11-19，macOS（Apple Silicon），`go-support-1.3.0-darwin.zip`，宿主 `34afcaf11`（1lck/Lithe-IDEA#2183 的分支提交）。
+**最近验证**：2026-11-19，macOS（Apple Silicon），`go-support-1.3.0-darwin.zip` 发布包，宿主 `d87f114`（桌面端 0.8.8，包含 #2183）。
 `TestOfficialGoPluginDrawsItsSettingsRegions` 通过：后端由宿主启动，两个区域在中英文下各画出一张画布，viewBox 宽度分别是 610 和 340，
 标题和标签是对应语言，草稿让预览标出未应用的修改、让构建系统页的 `go` 路径一步变成“使用中”，安装目录的文件不变。
 另用宿主无头界面在最小宽度（900）和较宽窗口（1300）下截了中英文、浅色和深色、默认值和全部开启的 32 张图检查排版。没有做手工验收。
