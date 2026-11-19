@@ -2,7 +2,7 @@
   "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "pluginAPIVersion": 0,
   "requires": {
     "buildSystems": 0,
@@ -344,7 +344,8 @@
           "displayName": "Go Build",
           "description": "Builds and runs a Go package, file or directory with go run.",
           "icon": {
-            "path": "icons/go.svg",
+            "path": "icons/go-build.svg",
+            "darkPath": "icons/go-build-dark.svg",
             "mode": "original"
           },
           "fields": [
@@ -424,7 +425,8 @@
           "displayName": "Go Test",
           "description": "Runs go test on a package or on every package below a directory.",
           "icon": {
-            "path": "icons/go.svg",
+            "path": "icons/go-test.svg",
+            "darkPath": "icons/go-test-dark.svg",
             "mode": "original"
           },
           "execution": "task",

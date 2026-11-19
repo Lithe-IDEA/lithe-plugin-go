@@ -24,6 +24,8 @@
 > （[1lck/Lithe-IDEA#2148](https://github.com/1lck/Lithe-IDEA/pull/2148)，固定了
 > [Lithe-core-rust#94](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/94) 的 Core），桌面端 0.8.6 起包含它。
 > 1.1.0 作为正式版本发布并收录到 Lithe Store；Store 按版本的 `requires` 给更早的桌面端继续提供 1.0.1。
+> 1.2.0 的 Go 构建和 Go 测试类型图标需要能读取插件包图标的桌面端（[1lck/Lithe-IDEA#2169](https://github.com/1lck/Lithe-IDEA/pull/2169)），
+> 作为预发布版本发布；桌面端 0.8.6 也能安装它，只是显示通用图标。
 
 ## 功能
 
@@ -274,7 +276,8 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1` 和依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；`v1.0.1` 和 `v1.1.0` 是正式版本。
+   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0` 和图标依赖宿主 #2169 的 `v1.2.0`；
+   `v1.0.1` 和 `v1.1.0` 是正式版本。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 

@@ -43,7 +43,7 @@ jobs:
           # Lithe-core-rust#94), which desktop 0.8.6 is the first release to ship.
           # It is published as a stable release so the Store tracker lists it; the
           # Store index records its requires and keeps older hosts on 1.0.1.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0
+          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.2.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do
