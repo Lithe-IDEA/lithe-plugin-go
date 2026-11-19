@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,10 +18,12 @@ import (
 // This opt-in integration test installs the released Go Support archive and opens its two
 // settings regions as the settings window does: through the window's own settings source,
 // which starts the packaged backend, sends the region's view events and has Core check every
-// answer. It needs neither go nor gopls, since the backend reads settings only.
+// answer. Every event carries the region's width, as the window measures it, and a resize
+// to a wider window draws the scene again at the new width. It needs neither go nor gopls,
+// since the backend reads settings only.
 
-// goRegion is one of the plugin's settings regions, the width its scene is drawn for and the
-// words of its title and label in each language.
+// goRegion is one of the plugin's settings regions, its width in the smallest settings window
+// and the words of its title and label in each language.
 type goRegion struct {
 	id    string
 	width float64
@@ -46,6 +49,7 @@ type drawnCanvas struct {
 	Height  float64           `json:"height"`
 	ViewBox []float64         `json:"viewBox"`
 	Pan     json.RawMessage   `json:"pan"`
+	On      []string          `json:"on"`
 	Nodes   []json.RawMessage `json:"nodes"`
 }
 
@@ -103,6 +107,21 @@ func drawRegion(t *testing.T, ctx context.Context, sources pluginSettingsSources
 	return nodes[0]
 }
 
+// drawnAt checks that a region's canvas is drawn for a view width points wide: its view box
+// is that wide, it shows whole at one unit to a point, and it listens for resize.
+func drawnAt(t *testing.T, region string, canvas drawnCanvas, width float64) {
+	t.Helper()
+	if len(canvas.ViewBox) != 4 || canvas.ViewBox[2] != width || canvas.ViewBox[3] < 1 {
+		t.Fatalf("%s region: view box %v, want one %g wide", region, canvas.ViewBox, width)
+	}
+	if canvas.Height < canvas.ViewBox[3] || len(canvas.Pan) > 0 {
+		t.Fatalf("%s region: height %g, pan %s; the scene must show whole at one unit to a point", region, canvas.Height, canvas.Pan)
+	}
+	if !slices.Contains(canvas.On, "resize") {
+		t.Fatalf("%s region: on %v, want resize so the scene follows the window", region, canvas.On)
+	}
+}
+
 func TestOfficialGoPluginDrawsItsSettingsRegions(t *testing.T) {
 	archive := os.Getenv("LITHE_TEST_GO_PLUGIN_ARCHIVE")
 	if archive == "" {
@@ -129,13 +148,9 @@ func TestOfficialGoPluginDrawsItsSettingsRegions(t *testing.T) {
 			// host adds the saved ones, read from the installed plugin.
 			opened := drawRegion(t, ctx, sources, editor, region.id, map[string]any{
 				"event": "open", "instance": "e2e-" + strconv.Itoa(instance), "language": language.Code(),
+				"width": region.width,
 			})
-			if len(opened.ViewBox) != 4 || opened.ViewBox[2] != region.width || opened.ViewBox[3] < 1 {
-				t.Fatalf("%s region: view box %v, want one %g wide", region.id, opened.ViewBox, region.width)
-			}
-			if opened.Height < opened.ViewBox[3] || len(opened.Pan) > 0 {
-				t.Fatalf("%s region: height %g, pan %s; the scene must show whole at one unit to a point", region.id, opened.Height, opened.Pan)
-			}
+			drawnAt(t, region.id, opened, region.width)
 			words := sceneWords(t, opened.Nodes)
 			for _, want := range region.words[language] {
 				if !strings.Contains(words, want) && opened.Label != want {
@@ -154,8 +169,9 @@ func TestOfficialGoPluginDrawsItsSettingsRegions(t *testing.T) {
 			}
 			drafted := drawRegion(t, ctx, sources, editor, region.id, map[string]any{
 				"event": "settings", "instance": "e2e-" + strconv.Itoa(instance), "language": language.Code(),
-				"settings": map[string]any{"effective": map[string]any{}, "draft": draft},
+				"width": region.width, "settings": map[string]any{"effective": map[string]any{}, "draft": draft},
 			})
+			drawnAt(t, region.id, drafted, region.width)
 			draftWords := sceneWords(t, drafted.Nodes)
 			if !strings.Contains(draftWords, draftNote) {
 				t.Fatalf("%s region in %s: the draft %v is not marked; the scene says:\n%s", region.id, language.Code(), draft, draftWords)
@@ -163,6 +179,18 @@ func TestOfficialGoPluginDrawsItsSettingsRegions(t *testing.T) {
 			inUse := map[i18n.Language]string{i18n.English: "In use", i18n.Chinese: "使用中"}[language]
 			if region.id == "toolchain" && (strings.Contains(words, inUse) || !strings.Contains(draftWords, inUse)) {
 				t.Fatalf("toolchain region in %s: only a set go executable is in use; saved:\n%s\ndrafted:\n%s", language.Code(), words, draftWords)
+			}
+
+			// The window widens: the host sends resize with the new width, and the plugin
+			// lays the same scene out again at it, the draft still marked.
+			const wider = 760
+			resized := drawRegion(t, ctx, sources, editor, region.id, map[string]any{
+				"event": "resize", "instance": "e2e-" + strconv.Itoa(instance), "language": language.Code(),
+				"width": wider, "settings": map[string]any{"effective": map[string]any{}, "draft": draft},
+			})
+			drawnAt(t, region.id, resized, wider)
+			if resizedWords := sceneWords(t, resized.Nodes); !strings.Contains(resizedWords, draftNote) {
+				t.Fatalf("%s region in %s: the resized scene lost the draft; it says:\n%s", region.id, language.Code(), resizedWords)
 			}
 		}
 	}

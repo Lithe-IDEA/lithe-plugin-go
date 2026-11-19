@@ -10,7 +10,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "go-support-backend"
-version = "1.3.0"
+version = "1.3.1"
 dependencies = [
  "lithe-plugin-sdk",
  "serde_json",
@@ -25,7 +25,7 @@ checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 [[package]]
 name = "lithe-plugin-sdk"
 version = "0.4.0"
-source = "git+https://github.com/Lithe-IDEA/Lithe-core-rust?rev=545ca11fb971795a9937f0f60bcc29afebe3b8be#545ca11fb971795a9937f0f60bcc29afebe3b8be"
+source = "git+https://github.com/Lithe-IDEA/Lithe-core-rust?rev=0b6da2725ded74de7c3b62b49d12c1947dc0a38a#0b6da2725ded74de7c3b62b49d12c1947dc0a38a"
 dependencies = [
  "base64",
  "serde_json",

@@ -37,10 +37,10 @@ fn main() {
 }
 
 fn view(event: ViewEvent, context: &Context) -> Result<ViewResult, FunctionError> {
-    let nodes = match event.kind {
-        ViewEventKind::Open | ViewEventKind::Settings => render(&event)?,
-        _ => return Ok(ViewResult::Unchanged),
-    };
+    if !redraws(&event.kind) {
+        return Ok(ViewResult::Unchanged);
+    }
+    let nodes = render(&event)?;
     if nodes.1 > 0 {
         context
             .diagnostics()
@@ -49,8 +49,18 @@ fn view(event: ViewEvent, context: &Context) -> Result<ViewResult, FunctionError
     Ok(ViewResult::View(nodes.0))
 }
 
-/// The nodes of the event's region, and how many settings held a value the
-/// preview could not read and shows as the default.
+/// Whether the event changes what the view draws: it opens, the settings
+/// change, or the view's width settles at a new value.
+fn redraws(kind: &ViewEventKind) -> bool {
+    matches!(
+        kind,
+        ViewEventKind::Open | ViewEventKind::Settings | ViewEventKind::Resize
+    )
+}
+
+/// The nodes of the event's region, laid out for the width the event
+/// carries, and how many settings held a value the preview could not read
+/// and shows as the default.
 fn render(event: &ViewEvent) -> Result<(Vec<Value>, u64), PluginError> {
     let ViewSurface::SettingRegion(region) = &event.surface else {
         return Err(unknown_region());
@@ -58,8 +68,8 @@ fn render(event: &ViewEvent) -> Result<(Vec<Value>, u64), PluginError> {
     let settings = Settings::read(event);
     let words = words::for_language(&event.language);
     let canvas = match region.as_str() {
-        LANGUAGE_REGION => language::canvas(&settings, words),
-        TOOLCHAIN_REGION => resolution::canvas(&settings, words),
+        LANGUAGE_REGION => language::canvas(&settings, words, event.width),
+        TOOLCHAIN_REGION => resolution::canvas(&settings, words, event.width),
         _ => return Err(unknown_region()),
     };
     Ok((vec![canvas], settings.unrecognized))
@@ -78,19 +88,73 @@ mod tests {
     use serde_json::Map;
 
     fn event(region: &str, language: &str, effective: Value, draft: Value) -> ViewEvent {
-        ViewEvent::parse(&json!({
-            "event": "settings",
+        event_at("settings", region, language, None, effective, draft)
+    }
+
+    /// A `kind` event for `region`, with the view's width when the host
+    /// reports it.
+    fn event_at(
+        kind: &str,
+        region: &str,
+        language: &str,
+        width: Option<f64>,
+        effective: Value,
+        draft: Value,
+    ) -> ViewEvent {
+        let mut event = json!({
+            "event": kind,
             "instance": "i1",
             "surface": { "settingRegionID": region },
             "language": language,
             "settings": { "effective": effective, "draft": draft },
-        }))
-        .unwrap()
+        });
+        if let Some(width) = width {
+            event["width"] = json!(width);
+        }
+        ViewEvent::parse(&event).unwrap()
     }
 
     fn nodes(region: &str, language: &str, effective: Value, draft: Value) -> Vec<Value> {
         render(&event(region, language, effective, draft)).unwrap().0
     }
+
+    fn nodes_at(region: &str, language: &str, width: f64, effective: Value, draft: Value) -> Vec<Value> {
+        let event = event_at("resize", region, language, Some(width), effective, draft);
+        render(&event).unwrap().0
+    }
+
+    /// How far right what `nodes` draws reaches, in view-box units, from a
+    /// parent at `x0`: rects, code characters, text that ends at its x and
+    /// text cut at a maximum width. Other text has no extent the plugin
+    /// knows, and paths are drawn inside the rects here.
+    fn right_edge(nodes: &[Value], x0: f64) -> f64 {
+        let mut edge: f64 = 0.0;
+        for node in nodes {
+            let x = x0 + node.get("x").and_then(Value::as_f64).unwrap_or(0.0);
+            let character = node["style"] == "monoSmall"
+                && node["text"].as_str().is_some_and(|text| text.chars().count() == 1);
+            let reach = match (node["type"].as_str(), node.get("align").and_then(Value::as_str)) {
+                (Some("rect"), _) => x + node["w"].as_f64().unwrap(),
+                (Some("text"), Some("end")) => x,
+                (Some("text"), None) if character => x + scene::MONO_ADVANCE,
+                (Some("text"), None) => node
+                    .get("maxWidth")
+                    .and_then(Value::as_f64)
+                    .map_or(0.0, |width| x + width),
+                _ => 0.0,
+            };
+            edge = edge.max(reach);
+            for key in ["children", "nodes"] {
+                if let Some(children) = node.get(key).and_then(Value::as_array) {
+                    edge = edge.max(right_edge(children, x));
+                }
+            }
+        }
+        edge
+    }
+
+    /// Room for the rounding of positions and sizes to tenths.
+    const ROUNDING: f64 = 0.1;
 
     /// Every node of a scene, the nested ones included.
     fn walk<'a>(node: &'a Value, out: &mut Vec<&'a Value>) {
@@ -238,8 +302,14 @@ mod tests {
     /// pane.
     const REGION_WIDTHS: [(&str, f64); 2] = [(LANGUAGE_REGION, 613.0), (TOOLCHAIN_REGION, 344.0)];
 
+    /// The narrowest scene of each region; a narrower view is scaled down.
+    const MIN_WIDTHS: [(&str, f64); 2] = [
+        (LANGUAGE_REGION, language::MIN_CARD_W),
+        (TOOLCHAIN_REGION, resolution::MIN_WIDTH),
+    ];
+
     #[test]
-    fn each_scene_fits_its_region_one_unit_to_a_point() {
+    fn without_a_width_each_scene_fits_its_region_in_the_smallest_window() {
         for (region, width) in REGION_WIDTHS {
             for language in ["en", "zh-Hans"] {
                 let nodes = nodes(region, language, json!({}), json!({}));
@@ -253,7 +323,96 @@ mod tests {
                     "{region}"
                 );
                 assert!(nodes[0].get("pan").is_none());
+                // A host that reports no width cannot send resize, and one
+                // from before resize existed rejects the word.
+                assert!(nodes[0].get("on").is_none(), "{region}");
             }
+        }
+    }
+
+    #[test]
+    fn each_scene_is_as_wide_as_the_view_and_draws_inside_it() {
+        let widths = [330.0, 344.0, 480.0, 593.0, 594.0, 613.0, 900.0, 1400.0];
+        for (region, _) in REGION_WIDTHS {
+            for language in ["en", "zh-Hans"] {
+                for (effective, draft) in settings_cases() {
+                    for width in widths {
+                        let nodes = nodes_at(region, language, width, effective.clone(), draft.clone());
+                        check_limits(&nodes);
+                        let canvas = &nodes[0];
+                        let view_box = canvas["viewBox"].as_array().unwrap();
+                        assert_eq!(view_box[2].as_f64().unwrap(), width, "{region} at {width}");
+                        assert_eq!(
+                            canvas["height"].as_f64().unwrap(),
+                            view_box[3].as_f64().unwrap().ceil(),
+                            "{region} at {width}"
+                        );
+                        assert!(canvas.get("pan").is_none());
+                        assert_eq!(canvas["on"], json!(["resize"]), "{region} at {width}");
+                        let reach = right_edge(std::slice::from_ref(canvas), 0.0);
+                        assert!(reach <= width + ROUNDING, "{region} {language} at {width}: {reach}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_view_narrower_than_the_narrowest_scene_gets_the_narrowest() {
+        for (region, min) in MIN_WIDTHS {
+            let nodes = nodes_at(region, "en", 200.0, json!({}), json!({}));
+            assert_eq!(nodes[0]["viewBox"][2].as_f64().unwrap(), min, "{region}");
+        }
+    }
+
+    /// The x and the content's reach of each language card, the frame first
+    /// among each card's children.
+    fn cards(width: f64, language: &str) -> Vec<(f64, f64, f64)> {
+        let nodes = nodes_at(
+            LANGUAGE_REGION,
+            language,
+            width,
+            json!({ "usePlaceholders": true, "gofumpt": true, "staticcheck": true }),
+            json!({}),
+        );
+        nodes[0]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|node| node["type"] == "group")
+            .map(|card| {
+                let children = card["children"].as_array().unwrap();
+                let frame = children[0]["w"].as_f64().unwrap();
+                (card["x"].as_f64().unwrap(), frame, right_edge(children, 0.0))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_cards_stand_two_to_a_row_only_when_two_of_the_narrowest_fit() {
+        let two = 2.0 * language::MIN_CARD_W + 10.0;
+        for language in ["en", "zh-Hans"] {
+            for (width, columns) in [(two - 1.0, 1), (two, 2), (1400.0, 2), (330.0, 1)] {
+                let cards = cards(width, language);
+                assert_eq!(cards.len(), 4);
+                let beside = cards.iter().filter(|(x, ..)| *x > 0.0).count();
+                assert_eq!(beside, if columns == 2 { 2 } else { 0 }, "{language} at {width}");
+                for (x, frame, reach) in cards {
+                    assert!(reach <= frame + ROUNDING, "{language} at {width}: {reach} past {frame}");
+                    assert!(x + frame <= width + ROUNDING, "{language} at {width}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_resize_draws_the_view_again_for_the_new_width() {
+        assert!(redraws(&ViewEventKind::Resize));
+        assert!(redraws(&ViewEventKind::Open) && redraws(&ViewEventKind::Settings));
+        assert!(!redraws(&ViewEventKind::Close) && !redraws(&ViewEventKind::Viewport));
+        for (region, _) in REGION_WIDTHS {
+            let wide = nodes_at(region, "en", 760.0, json!({}), json!({}));
+            assert_eq!(wide[0]["viewBox"][2], json!(760.0), "{region}");
         }
     }
 

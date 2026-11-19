@@ -3,14 +3,18 @@
 //!
 //! Coordinates are view-box units. A canvas without `pan` shows its whole
 //! view box, scaled to the view's width but never past its `height`, from
-//! the top-left corner. Each scene is drawn for the width its region has in
-//! the smallest settings window and is as tall as its view box, so one unit
-//! is one point there, and a wider window shows it whole at the same size.
+//! the top-left corner. Each scene is drawn for the width the host reports
+//! and is as tall as its view box, so one unit is one point, and it lists
+//! `resize` to be drawn again when the window's width changes. A host that
+//! reports no width gets the scene for the smallest settings window, which a
+//! wider window shows whole at the same size.
 
 use serde_json::{json, Map, Value};
 
-/// The pixel size of the host's `caption` text style at scale 1.
+/// The pixel sizes of the host's `caption` and `strong` text styles at
+/// scale 1.
 pub const CAPTION: f64 = 11.0;
+pub const STRONG: f64 = 13.0;
 
 /// How far one character of `monoSmall` code advances in the scenes.
 ///
