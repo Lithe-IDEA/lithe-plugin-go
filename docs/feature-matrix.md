@@ -23,6 +23,7 @@
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
 | `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-18 macOS 宿主端到端测试通过（宿主 a8797ae）；Windows 只有命令层面的 `scripts/test.mjs` |
+| `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（宿主 34afcaf11，1lck/Lithe-IDEA#2183）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -36,7 +37,7 @@
 | 平台 | 实现 | 验证 | 说明 |
 | --- | --- | --- | --- |
 | macOS | implemented | pending | 发布包同时支持 Apple Silicon 和 Intel Mac |
-| Windows | implemented | pending | `-windows.zip` 与 darwin 包字节相同，同时用于 ARM64 和 x64：GOROOT 里解析 `bin/go.exe`，gopls 按 PATHEXT 找到 `gopls.exe`。见下文“Windows 安装包” |
+| Windows | implemented | pending | `-windows-x64.zip` 和 `-windows-arm64.zip` 只在设置预览后端上与 darwin 包不同：GOROOT 里解析 `bin/go.exe`，gopls 按 PATHEXT 找到 `gopls.exe`。见下文“Windows 安装包” |
 
 **证据**：
 
@@ -245,15 +246,56 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
    `go.mod` 的 `go` 行是这个值。
 6. 电脑上没有 Go（或只有低于 1.21 的 Go）时 GOROOT 留空，高级选项自动展开并提示填写 Go 版本，填写后可以创建。
 
+## go-settings-previews
+
+**能力**：插件后端（`bin/backend`，Rust）实现 `settings.view` 视图函数，给两个 `settingRegions` 画画布：
+
+- `language`（Go 语言设置页）：四张卡片分别画悬停文档（按 `hoverKind` 显示完整、摘要、单行或只有签名）、参数占位符（`usePlaceholders`）、
+  gofumpt 格式化（`gofumpt` 开关前后的代码对比）和 Staticcheck 分析（`staticcheck` 开启后多出的问题）在编辑器里的样子。
+- `toolchain`（Go 构建系统页）：Lithe 查找 go 的顺序（设置的 `go` 路径、项目固定、全局默认、`GOROOT`、`PATH`、常见位置），
+  设置了 `go` 路径时只有这一步“使用中”，其余“不使用”。
+
+两个区域都读设置窗口里还没应用的草稿，草稿和已保存的值不同时预览先变、并标出“含未应用的修改”。画面中英文跟随设置窗口的语言，
+浅色和深色外观用宿主的颜色标记或成对颜色。后端只读设置，不启动 gopls、go 或 dlv，也不写插件目录。
+
+**证据**：
+
+- `io.github.lithe-idea.go-support/plugin.json`：`settingRegions` 的 `language`、`toolchain`，`backend.launch`，`requires` 的 `backend: 0`、`ui: 0`，
+  权限 `backend.launch`、`ui.contribute`。
+- `backend/src/`：视图函数和场景；`cargo test --locked` 检查每个场景在两种语言下都在契约限制内、宽度与区域一致，
+  以及各设置对预览的影响。CI 不跑 `cargo test`，只构建后端。
+- `e2e/host/desktop/internal/workbench/official_go_plugin_settings_view_e2e_test.go`：经设置窗口自己的设置来源启动安装包里的后端，
+  用中英文打开两个区域并发草稿事件，由 Core 校验每次回答。
+
+**依赖的宿主能力**：插件视图和设置区域（1lck/Lithe-IDEA#2183，Core Lithe-core-rust#104）。画布不写 `pan` 时宿主按
+`min(宽/viewBox 宽, 高/viewBox 高)` 从左上角缩放（#2183 的 34afcaf11）；场景按设置窗口最窄时区域的宽度画（语言页 610、构建系统页 340），
+宽窗口里原样显示。
+
+**限制**：代码按 SF Mono 的 7pt 字宽一个字符一个节点排版，选区、光标、输入框和波浪线才能对准字符；Windows 上 Consolas 的字更窄，
+代码间距会比宿主自己画的略宽。
+
+**最近验证**：2026-11-19，macOS（Apple Silicon），`go-support-1.3.0-darwin.zip`，宿主 `34afcaf11`（1lck/Lithe-IDEA#2183 的分支提交）。
+`TestOfficialGoPluginDrawsItsSettingsRegions` 通过：后端由宿主启动，两个区域在中英文下各画出一张画布，viewBox 宽度分别是 610 和 340，
+标题和标签是对应语言，草稿让预览标出未应用的修改、让构建系统页的 `go` 路径一步变成“使用中”，安装目录的文件不变。
+另用宿主无头界面在最小宽度（900）和较宽窗口（1300）下截了中英文、浅色和深色、默认值和全部开启的 32 张图检查排版。没有做手工验收。
+
+**验证方法**（macOS）：
+
+1. 安装插件包，打开「设置 › 语言 › Go」：顶部出现四张预览卡片，浅色和深色外观下文字和代码都清楚，窗口拉宽时不被裁掉。
+2. 改悬停文档、参数占位符、gofumpt、Staticcheck，先不点应用：对应卡片立刻变化，标出“含未应用的修改”；点应用后标记消失。
+3. 打开「设置 › 构建、执行、部署 › 构建工具 › Go」：预览列出查找 go 的顺序；填 `go` 路径后这一步变成“使用中”，其余“不使用”。
+4. 界面语言换成中文，两个预览都显示中文。
+
 ## Windows 安装包
 
 | 能力 | Windows ARM64 | Windows x64 | 验证入口 |
 | --- | --- | --- | --- |
-| 安装包 | 已实现（与 darwin 包同一份字节） | 已实现（同一份包） | `scripts/package/windows.test.mjs`：摘要相同，`go.exe` 布局，条目名在 Windows 上可解压 |
+| 安装包 | 已实现（`-windows-arm64.zip`，带 ARM64 的 `bin/backend.exe`） | 已实现（`-windows-x64.zip`，带 x64 的 `bin/backend.exe`） | `scripts/package/archives.test.mjs`：清单只改了后端启动路径，后端是该架构的 PE 程序并带许可证清单，`go.exe` 布局，条目名在 Windows 上可解压 |
+| 设置预览后端 | CI 在 `windows-latest` 上用 MSVC ARM64 工具交叉编译 | CI 在 `windows-latest` 上编译 | `.github/workflows/ci.yml` 的 `backend` 任务；还没有在 Windows 版 Lithe 里打开过设置预览 |
 | 真实 go、gopls 流程 | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（`windows-11-arm`） | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（`windows-latest`） | `.github/workflows/ci.yml` 的 `commands` 任务跑 `scripts/test.mjs`，`LITHE_TEST_PLUGIN_DIR` 指向解压到带空格路径的 Windows 包 |
 | Delve 调试 | 不支持：Delve 上游没有 windows/arm64 后端，`scripts/test.mjs` 把 dlv 检查记为跳过 | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（托管安装和 `dlv dap` 端点公告） | 同上 |
 
-包里只有声明资源（清单、模板、图标），ARM64 与 x64 的差别只在用户自己的 Go、gopls 和 dlv，所以两种架构用同一份包。
+包里除了声明资源（清单、模板、图标），只有画设置预览的后端，所以 ARM64 与 x64 各有一份包，只有 `bin/backend.exe` 不同；Go、gopls 和 dlv 仍是用户自己的。
 Delve 目前不能在 Windows ARM64 上构建，所以那里没有调试；Delve 加入支持后，同一份包不改就能用，测试也会自动改为实际检查。
 `scripts/test.mjs` 按清单逐条运行版本探测、模型和依赖命令、构建、vet、过滤后的测试、`go env` 目录、gopls 和 dlv 的托管安装、
 gopls 的校验参数和 `dlv dap` 的端点公告。这些只是命令层面的自动化测试，不能代替 Lithe 里的验收，验证列保持 `pending`。
