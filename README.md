@@ -269,9 +269,21 @@ LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.1-darwin.zip" node script
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
-复制 `e2e/host/desktop/` 下的测试，再在那里运行宿主的 `scripts/desktop/desktop-go.sh test`；第一次运行会克隆并构建
+通过 Go overlay 加载 `e2e/host/desktop/` 下的测试，再运行宿主的 `scripts/desktop/desktop-go.sh test`；第一次运行会克隆并构建
 Rust Core，`LITHE_CORE_RUST_DIR` 可以指向本地的 Core 检出。`--ref <分支或 commit>` 换一个宿主版本试跑，
 `--run <正则>` 只跑部分测试。测试用的是宿主内部的测试工具，升级 `lithe-host.json` 的 `revision` 时可能要同步修改测试。
+
+远程测试需要支持远程插件的宿主版本，以及登录环境里有 `go`、`gopls` 和 `dlv` 的一次性 Linux SSH 目标。使用与客户端平台匹配的插件包和该宿主的 `scripts/desktop/build-remote-server.sh` 生成的服务产物。Windows 上用 Git Bash 启动测试，插件包和路径按 Windows 客户端填写。
+
+```bash
+LITHE_TEST_GO_SSH_HOST=my-linux-test-host \
+  LITHE_REMOTE_SERVER_STAGE=/absolute/path/to/remote-server \
+  node scripts/e2e-host.mjs --remote --ref "$LITHE_HOST_REF"
+```
+
+`LITHE_HOST_REF` 是要验证的宿主分支或提交。也可用 `--worktree /absolute/path/to/Lithe-IDEA` 替换 `--ref "$LITHE_HOST_REF"`，直接测试该检出的当前文件。测试入口在 `.artifacts/` 生成一次性的 Go overlay，结束后移除，不向宿主检出复制测试源码。
+
+用例覆盖远端构建、运行和测试，gopls 诊断与保存，以及 Delve 断点、栈帧跳转和调试资源清理。
 
 ## 功能矩阵
 

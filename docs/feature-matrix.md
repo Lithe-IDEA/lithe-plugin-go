@@ -22,6 +22,7 @@
 | --- | --- | --- | --- | --- |
 | `go-support-plugin` | gopls 代码智能、Go Modules 构建、运行与 `go test` | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241) |
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
+| `go-remote-ssh` | 在 Linux SSH 工作区运行 Go、gopls 和 Delve | implemented / pending | implemented / pending | 2026-11-21，macOS arm64 和 Windows x64 客户端的真实 SSH 端到端测试通过 |
 | `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 只有命令层面的 `scripts/test.mjs` |
 | `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（本地 1.3.1 包，宿主 312a9c63a，即 1lck/Lithe-IDEA#2191 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
@@ -300,6 +301,14 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 3. 打开「设置 › 构建、执行、部署 › 构建工具 › Go」：预览列出查找 go 的顺序；填 `go` 路径后这一步变成“使用中”，其余“不使用”。
    拖宽窗口后步骤卡片跟着变宽，较长的 `go` 路径显示得更多。
 4. 界面语言换成中文，两个预览都显示中文。
+
+## go-remote-ssh
+
+Go Support 安装在桌面客户端。打开受信任的 Linux SSH 工作区后，构建、运行、测试、gopls 与 Delve 使用远端登录环境的工具，诊断和调试栈帧显示在本机编辑器。
+
+**最近验证**：2026-11-21，Go Support 1.3.1，桌面宿主和 Core 为 [#2231](https://github.com/1lck/Lithe-IDEA/issues/2231) 的开发检出。macOS arm64 客户端连接 Linux arm64，通过仓库的标准入口执行 `TestOfficialGoPluginUsesRemoteWorkspaceOverSSH`。Windows x64 客户端在 ARM64 来宾内仿真执行同一场景。测试覆盖远端模块构建和运行、只在 Linux 上通过的测试、Delve 断点和调用栈导航、调试隧道释放，以及本机编辑触发的 gopls 诊断。手工验收待完成。
+
+**验证方法**：在 macOS 和 Windows 分别安装对应平台的插件包，打开带 Go、gopls 和 dlv 的 Linux SSH 工作区。用构建窗口构建、运行和测试 Go 模块，在编辑器引入可诊断的问题，再设置断点并从调用栈打开源文件。结束调试后检查没有残留转发。自动化入口见 [README 的远程 SSH 验收](../README.md#远程-ssh-验收)。
 
 ## Windows 安装包
 
