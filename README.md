@@ -62,6 +62,7 @@ gopls、go 和 dlv 仍然用你电脑上的。
 | 设置 | 生效方式 | 说明 |
 | --- | --- | --- |
 | Go executable | 重新读取模块 | 读取模块、构建、检查、测试和运行用的 `go`。留空时使用「工具链」选出的 Go（见下）。也显示在「构建、执行、部署 › Go Modules」页 |
+| Delve executable | 下次启动调试 | 选择与项目 Go 版本兼容的本机 Delve 可执行文件。留空时先查找 `PATH`，再查找插件记录的安装目录。 |
 | Staticcheck analyses | 立即 | 让 gopls 额外报告 staticcheck 的检查结果；大模块上更耗 CPU 和内存 |
 | Format with gofumpt | 立即 | 格式化时使用 gofumpt 的更严格规则 |
 | Parameter placeholders in completion | 立即 | 补全函数调用时插入参数占位符 |
@@ -96,6 +97,10 @@ gopls、go 和 dlv 仍然用你电脑上的。
 ## 调试
 
 打开「调试」窗口，适配器选 **Go (Delve)**，打开要调试的 `.go` 文件，在行号旁设好断点后点「开始」。
+
+Delve 提示 Go 版本不兼容时，可在「设置 → 插件 → Go Support → 设置」明确选择兼容的 **Delve executable**。
+这个设置对本机的 Go 调试生效，Delve 仍会检查 Go 版本。此设置需要支持 `debugAdapters[].launch.executableSetting`
+的桌面宿主。较早的宿主会拒绝包含该字段的插件包，可继续使用 Go Support 1.3.1 的已发布包。
 
 - 调试的是当前文件所在的包：Delve 在这个包的目录里构建它，再在断点处停下。所以要调试 `cmd/server` 的程序，
   打开 `cmd/server` 里的任意文件即可。
@@ -272,6 +277,10 @@ LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.1-darwin.zip" node script
 复制 `e2e/host/desktop/` 下的测试，再在那里运行宿主的 `scripts/desktop/desktop-go.sh test`；第一次运行会克隆并构建
 Rust Core，`LITHE_CORE_RUST_DIR` 可以指向本地的 Core 检出。`--ref <分支或 commit>` 换一个宿主版本试跑，
 `--run <正则>` 只跑部分测试。测试用的是宿主内部的测试工具，升级 `lithe-host.json` 的 `revision` 时可能要同步修改测试。
+
+复测 Go 1.22.12 的兼容性时，将 Delve 1.27.2 放在 `PATH`，设置
+`LITHE_TEST_COMPATIBLE_DELVE` 为 Delve 1.23.1 的绝对路径，再用支持该设置的宿主运行
+`--run '^TestOfficialGoPluginDebugsWithConfiguredDelve$'`。测试使用同一个 Go 模块先验证版本错误，再通过插件设置选择兼容版并验证断点。
 
 ## 功能矩阵
 

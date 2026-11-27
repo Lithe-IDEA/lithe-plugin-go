@@ -54,6 +54,16 @@
       "section": "Go toolchain"
     },
     {
+      "id": "delveExecutable",
+      "type": "file",
+      "title": "Delve executable",
+      "description": "The local Delve program used for debugging. Leave empty to look for dlv on PATH, then in plugin installation directories.",
+      "default": "",
+      "placeholder": "Automatic: find dlv",
+      "effect": "nextRun",
+      "section": "Go toolchain"
+    },
+    {
       "id": "staticcheck",
       "type": "boolean",
       "title": "Staticcheck analyses",
@@ -664,6 +674,7 @@
         }
       },
       "launch": {
+        "executableSetting": "delveExecutable",
         "process": {
           "launch": {
             "kind": "systemCommand",
