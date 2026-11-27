@@ -36,6 +36,10 @@ gopls、go 和 dlv 仍然用你电脑上的。
 > （[1lck/Lithe-IDEA#2191](https://github.com/1lck/Lithe-IDEA/pull/2191)，固定了
 > [Lithe-core-rust#109](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/109) 的 Core），还没有桌面端版本包含它。
 > 桌面端 0.8.7、0.8.8 不发送宽度，1.3.1 在上面按最小设置窗口排版，和 1.3.0 相同，所以 1.3.1 作为正式版本发布。
+> 1.3.2 新增 **Delve executable** 设置，允许选择与项目 Go 版本兼容的本机 Delve 可执行文件，需要支持
+> `debugAdapters[].launch.executableSetting` 的桌面端 0.8.20 或更新版本（[1lck/Lithe-IDEA#2464](https://github.com/1lck/Lithe-IDEA/pull/2464)，
+> 固定了 [Lithe-core-rust#207](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/207) 的 Core）。
+> 1.3.2 作为正式版本发布并收录到 Lithe Store；较早的桌面端不认识该字段，会拒绝安装 1.3.2 并继续使用 1.3.1。
 
 ## 功能
 
@@ -270,7 +274,7 @@ CI 在 macOS、Windows x64 和 Windows ARM64 上跑这个脚本，Windows 上测
 ```bash
 node scripts/build-backend.mjs darwin
 node scripts/package.mjs --platforms darwin
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.1-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.2-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -301,9 +305,11 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
    目前是只能装进新版桌面端的 `v0.0.1` 和依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；
-   `v1.0.1`、`v1.1.0`、`v1.2.0`、`v1.3.0` 和 `v1.3.1` 是正式版本。
+   `v1.0.1`、`v1.1.0`、`v1.2.0`、`v1.3.0`、`v1.3.1` 和 `v1.3.2` 是正式版本。
    `v1.2.0` 和 `v1.3.0` 先以预发布发布，桌面端 0.8.7 带上它们依赖的 #2169 和 #2183 后改为正式版本；
-   `v1.3.1` 的宽度排版要靠还没发布的 #2191，但不发宽度的桌面端上退回 1.3.0 的排版，所以直接作为正式版本发布。
+   `v1.3.1` 的宽度排版要靠还没发布的 #2191，但不发宽度的桌面端上退回 1.3.0 的排版，所以直接作为正式版本发布；
+   `v1.3.2` 依赖支持 `debugAdapters[].launch.executableSetting` 的桌面端 0.8.20（#2464），作为正式版本发布，
+   较早的桌面端会拒绝安装该字段并留在 `1.3.1`。
 4. Lithe Store 的自动追踪会发现稳定版本并开合并请求，合并后用户即可在 Lithe 中更新。自动追踪会跳过预发布版本；
    需要收录时在 Store 中手工提交条目，并使用已发布 ZIP 的实际 SHA-256。
 
