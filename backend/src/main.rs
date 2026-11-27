@@ -1,16 +1,22 @@
 //! The Go Support plugin's backend. It draws the views of the plugin's
 //! settings regions (`settingRegions` in `plugin.json`): previews that follow
 //! the settings window as the user edits the rows below them. It reads
-//! settings only; gopls, go and the toolchain stay with the host.
+//! settings only; gopls, go and the toolchain stay with the host. It also
+//! marks the directories of the Go modules below each workspace's root as
+//! source directories (experimental, `modules`).
 
 mod language;
+mod modules;
 mod resolution;
 mod scene;
 mod settings;
 mod words;
 
+use std::sync::Arc;
+
 use lithe_plugin_sdk::view::{ViewEvent, ViewEventKind, ViewResult, ViewSurface};
 use lithe_plugin_sdk::{Backend, Context, FunctionError, PluginError};
+use modules::ModuleMarks;
 use serde_json::{json, Value};
 use settings::Settings;
 
@@ -33,6 +39,21 @@ fn main() {
     if registered.is_err() {
         std::process::exit(1);
     }
+    // Host requests wait for the `initialize` answer, which the hook runs
+    // before; the first sync runs on a thread of its own. A context change
+    // lists the contexts again; its failures are recorded as degradations.
+    let marks = Arc::new(ModuleMarks::new(backend.handle()));
+    backend.on_initialize({
+        let marks = Arc::clone(&marks);
+        move |_initialize| {
+            marks.sync_after_initialize();
+            Ok(())
+        }
+    });
+    backend.on_contexts_changed(move |_revision| {
+        marks.sync_on_change();
+        Ok(())
+    });
     std::process::exit(backend.listen());
 }
 

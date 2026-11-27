@@ -4,14 +4,14 @@
 用声明式构建系统接口（`buildSystems`）识别 Go 模块，在构建窗口里列出包，运行 `go build`、`go vet`、
 `go test` 和 `go run`，查看模块依赖；在「运行/调试配置」里新建 Go 构建和 Go 测试配置；用你电脑上的 Delve（`dlv`）调试，
 在「新建项目」里创建 Go 模块。
-这是一个**社区插件**，按插件契约 v0 编写。插件包含一份 `plugin.json`、几份项目模板，和一个只画设置页预览的小后端（Rust 编写）；
+这是一个**社区插件**，按插件契约 v0 编写。插件包含一份 `plugin.json`、几份项目模板，和一个画设置页预览、标记嵌套模块目录的小后端（Rust 编写）；
 gopls、go 和 dlv 仍然用你电脑上的。
 
 > English: Go support for Lithe — code intelligence through your own `gopls`, the Go Modules build system
 > (package model, build, vet, test, run and the module list) through the declarative `buildSystems` contract,
 > Go Build and Go Test run configurations, debugging through your own Delve, and a Go module entry in New Project.
-> The plugin is a `plugin.json`, a few project templates and a small Rust backend that only draws the settings
-> previews; gopls, go and dlv stay your own.
+> The plugin is a `plugin.json`, a few project templates and a small Rust backend that draws the settings
+> previews and marks the directories of nested modules; gopls, go and dlv stay your own.
 
 > **兼容性**：按插件契约 v0（`schemaVersion: 0`、`pluginAPIVersion: 0`）编写，只能装进新版 Lithe 桌面端
 > （`desktop-v*` 预发布），旧版 macOS Lithe 无法安装。1.0.0 的调试需要宿主支持 `tcpAnnounced` 调试适配器
@@ -40,6 +40,10 @@ gopls、go 和 dlv 仍然用你电脑上的。
 > `debugAdapters[].launch.executableSetting` 的桌面端 0.8.20 或更新版本（[1lck/Lithe-IDEA#2464](https://github.com/1lck/Lithe-IDEA/pull/2464)，
 > 固定了 [Lithe-core-rust#207](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/207) 的 Core）。
 > 1.3.2 作为正式版本发布并收录到 Lithe Store；较早的桌面端不认识该字段，会拒绝安装 1.3.2 并继续使用 1.3.1。
+> 1.4.0（实验）把工作区里嵌套 Go 模块的目录标成源代码目录，要靠支持插件目录标记的桌面端
+> （[1lck/Lithe-IDEA#2480](https://github.com/1lck/Lithe-IDEA/pull/2480)，固定了
+> [Lithe-core-rust#215](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/215) 的 Core），还没有桌面端版本包含它。
+> 较早的桌面端不认识新增的 `workspace.directoryMarks` 权限，会拒绝安装 1.4.0，所以 1.4.0 作为预发布版本发布，不进 Lithe Store。
 
 ## 功能
 
@@ -54,6 +58,7 @@ gopls、go 和 dlv 仍然用你电脑上的。
 | 诊断 | 把 `文件:行:列: 消息` 形式的编译输出显示为问题 |
 | 依赖 | `go list -m -json all` 列出模块依赖（含版本和是否间接依赖） |
 | 同步 | `go.mod`、`go.sum`、`go.work` 变化后重新读取模块 |
+| 模块目录（实验） | 打开工作区时找出根目录以下各层的 `go.mod`，把每个嵌套模块的目录在项目树里标成源代码目录；根目录本身的模块、`vendor`、`testdata` 和以 `.`、`_` 开头的目录不标。只在打开或关闭项目时重新查找，之后新建的 `go.mod` 下次打开项目才标上；只处理本地、单根的工作区。见 [docs/feature-matrix.md](docs/feature-matrix.md#go-module-directory-marks) |
 | 调试 | 「调试」窗口里选 Go (Delve)，调试当前打开的 `.go` 文件所在的包：断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台 |
 | 新建项目 | 「新建项目」里的 Go：选择 GOROOT，生成 `go.mod`、`.gitignore`，可选生成示例 `main.go`；模块路径默认是小写的项目名，Go 版本默认是所选 Go 的版本 |
 | 工具链 | 在常见位置找到电脑上的 Go 安装；项目可以固定用其中一个构建和运行 |
@@ -171,7 +176,7 @@ GOROOT 只能选 Go 1.21 或更新的版本；选了更旧的版本时表单会�
 | `dlv`（Delve，需要有 `dlv dap` 命令，已用 1.27.2 验证） | 调试 | 先找在 Lithe 里安装时记下的目录，再找 `PATH` 里的 `dlv`；Delve 构建程序时用 `PATH` 里的 `go` |
 
 安装插件时 Lithe 会列出这些程序和插件需要的权限（启动语言服务器、运行构建命令、启动调试器、创建项目、
-安装插件所需的命令行工具），确认后才会安装。
+安装插件所需的命令行工具；1.4.0 起还有读取工作区列表、按文件名搜索工作区和标记目录，用来找嵌套模块），确认后才会安装。
 
 `go` 需要自己安装，例如 `brew install go`。gopls 和 dlv 可以在 Lithe 里装：
 
@@ -274,7 +279,7 @@ CI 在 macOS、Windows x64 和 Windows ARM64 上跑这个脚本，Windows 上测
 ```bash
 node scripts/build-backend.mjs darwin
 node scripts/package.mjs --platforms darwin
-LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.3.2-darwin.zip" node scripts/e2e-host.mjs
+LITHE_TEST_GO_PLUGIN_ARCHIVE="$PWD/dist/go-support-1.4.0-darwin.zip" node scripts/e2e-host.mjs
 ```
 
 插件包路径要写绝对路径。脚本把固定版本的宿主（只取 `desktop/` 和 `scripts/`）检出到 `.artifacts/lithe-host`，
@@ -304,7 +309,8 @@ Lithe 主仓库的功能矩阵不收录插件能力，改动插件行为时在�
 
 3. `Release` 工作流会核对标签与版本一致、打包并发布 Release（说明里附 SHA-256 和
    `docs/releases/v<版本>.md`）。`release.yml` 里 `PRERELEASE_TAGS` 列出的版本会标为预发布版本：
-   目前是只能装进新版桌面端的 `v0.0.1` 和依赖宿主 #1954、#1964、#1971 的 `v1.0.0`；
+   目前是只能装进新版桌面端的 `v0.0.1`、依赖宿主 #1954、#1964、#1971 的 `v1.0.0`，以及依赖宿主 #2480
+   （`workspace.directoryMarks` 权限，较早的桌面端不认识这个权限、会拒绝安装）的实验版本 `v1.4.0`；
    `v1.0.1`、`v1.1.0`、`v1.2.0`、`v1.3.0`、`v1.3.1` 和 `v1.3.2` 是正式版本。
    `v1.2.0` 和 `v1.3.0` 先以预发布发布，桌面端 0.8.7 带上它们依赖的 #2169 和 #2183 后改为正式版本；
    `v1.3.1` 的宽度排版要靠还没发布的 #2191，但不发宽度的桌面端上退回 1.3.0 的排版，所以直接作为正式版本发布；
