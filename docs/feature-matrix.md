@@ -24,6 +24,7 @@
 | `go-debug-delve` | 用用户的 Delve 调试 Go 包 | implemented / pending | partial / pending | 2026-11-15 macOS 宿主端到端测试通过；Windows x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)；Windows ARM64 上 Delve 不支持 |
 | `go-run-configuration-types` | 「运行/调试配置」里的 Go 构建和 Go 测试 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（桌面端 0.8.8，宿主 d87f114）；Windows 只有命令层面的 `scripts/test.mjs` |
 | `go-settings-previews` | Go 语言设置页和 Go 构建系统页里插件自己画的预览 | implemented / pending | implemented / pending | 2026-11-19 macOS 宿主端到端测试通过（本地 1.3.1 包，宿主 312a9c63a，即 1lck/Lithe-IDEA#2191 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
+| `go-module-directory-marks` | 实验：把仓库里嵌套 Go 模块的目录标成源代码根目录 | implemented / pending | implemented / pending | 2026-11-28 macOS 宿主端到端测试通过（本地 1.4.0 包，宿主 fe8d10e18，即 1lck/Lithe-IDEA#2480 的分支提交）；Windows 后端只在 CI 构建，没有在 Windows 版 Lithe 里运行过 |
 | `go-project-generator` | 「新建项目」里的 Go 模块，GOROOT 选择和 Go 版本默认值 | implemented / pending | implemented / pending | 2026-11-15 macOS 宿主集成测试通过；Windows ARM64、x64 [原生 CI 通过](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（模板生成的模块能构建和测试） |
 
 ## go-support-plugin
@@ -302,6 +303,54 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
    拖宽窗口后步骤卡片跟着变宽，较长的 `go` 路径显示得更多。
 4. 界面语言换成中文，两个预览都显示中文。
 
+## go-module-directory-marks
+
+**能力**（实验，1.4.0 起）：打开工作区时，插件后端经宿主的文件搜索（`workspace/findFiles`）找出根目录以下各层的 `go.mod`，
+用 `workspace/setDirectoryMarks` 把每个嵌套模块所在的目录标成内置角色 `sources`（项目树里显示为「源代码根目录」），一眼能看出哪些目录是独立模块。
+根目录本身的模块不标（宿主不给工作区根目录加标记）；`vendor`、`testdata` 和以 `.`、`_` 开头的目录里的 `go.mod` 不算，
+和 go 命令的规则一致；只有文件名正好是 `go.mod` 才算。后端启动后先等会话就绪再查找；宿主的工作区上下文变化（打开或关闭项目）时重新查找，
+模块目录变了才重新发标记，模块全没了就发空列表清掉。标记只在宿主内存里，不写项目文件；关闭项目、停用插件或后端停止后随之消失。
+用户自己在项目树里设的目录类型、颜色、取消的排除和项目共享的目录规则都排在插件标记之上。
+
+**证据**：
+
+- `io.github.lithe-idea.go-support/plugin.json`：权限 `workspace.metadata`（列出打开的工作区）、`workspace.search`（按文件名查找）、
+  `workspace.directoryMarks`（标记目录），激活事件 `onWorkspaceOpen`。
+- `backend/src/modules.rs`：查找、过滤和发标记；`cargo test --locked` 检查嵌套模块的目录被标、根目录和 go 命令跳过的目录不标、
+  只认正好叫 `go.mod` 的文件、目录排序去重，以及只在模块目录变化时才重新发标记。CI 不跑 `cargo test`，只构建后端。
+- `e2e/host/desktop/internal/workbench/official_go_plugin_module_marks_e2e_test.go`：安装插件包后打开一个有多个模块的仓库，
+  等后端随工作区启动并标出 `tools` 和 `services/api`，检查 Core 把 `tools` 解析成项目树里由插件给出的 `sources`，
+  `vendor`、`testdata`、`_old` 和只有 `go.mod.bak` 的 `docs` 都没有插件标记，关闭项目后插件安装目录不变。不需要 go 或 gopls。
+
+**依赖的宿主能力**：`workspace/setDirectoryMarks` 和 `workspace.directoryMarks` 权限（1lck/Lithe-IDEA#2480，固定 Core Lithe-core-rust#215），
+还没有桌面端版本包含。较早的 Core 校验清单时不认识这个权限，报 `plugin.permission.unknown`，装不上 1.4.0，所以 1.4.0 作为预发布版本发布、不进 Lithe Store。
+宿主没有这个方法时后端在 stderr 说明一次，不发标记。
+
+**限制**：
+
+- 只在打开或关闭项目时查找；项目打开后新建、删除的模块，要等下次打开或关闭项目才更新标记。
+- 只处理本地、只有一个根目录的工作区；远程工作区和多根工作区不标。
+- 宿主的文件搜索一共最多返回 200 个结果，超过的 `go.mod` 不标，并记降级 `go.modules.truncated`。
+- 有了 `onWorkspaceOpen`，打开任何工作区（包括不是 Go 的）都会启动插件后端。
+
+**日志**：用户没有授权或上下文已经关闭（`plugin.host.permissionDenied`、`plugin.host.contextExpired`）不记；
+查找失败、发标记失败、结果被截断、一直列不出工作区，分别记降级 `go.modules.searchFailed`、`go.modules.markFailed`、
+`go.modules.truncated`、`go.modules.contextsUnavailable`，Core 把它们以 WARN 记到 `plugins/<插件 ID>/host`。
+
+**最近验证**：2026-11-28，macOS（Apple Silicon），本地构建的 `go-support-1.4.0-darwin.zip`，宿主 `fe8d10e18`
+（1lck/Lithe-IDEA#2480 的分支提交，固定 Core `914fed28`，即 Lithe-core-rust#215 的分支提交）。
+`TestOfficialGoPluginMarksNestedModuleDirectories` 通过；同一次运行里另外四个 workbench 测试和五个 projectgen 测试也通过，
+`TestOfficialGoPluginDebugsWithConfiguredDelve` 因为没有设置 `LITHE_TEST_COMPATIBLE_DELVE` 跳过。没有做手工验收。
+
+**验证方法**（macOS）：
+
+1. 用包含 #2480 的桌面端安装插件包：安装确认列出的权限里有标记目录。
+2. 打开一个根目录有 `go.mod`、子目录 `tools/`、`services/api/` 各有 `go.mod` 的仓库：项目树里 `tools` 和 `services/api` 显示为源代码根目录，根目录不变。
+3. 在 `vendor/`、`testdata/`、`_old/` 下放 `go.mod`，重新打开项目：这些目录不被标记。
+4. 在项目树里把 `tools` 手动标成别的类型：显示你标的类型；取消后恢复插件的标记。
+5. 在「设置 › 插件」里停用 Go Support：标记消失；重新启用并重新打开项目后标记回来。
+6. 打开一个不是 Go 的项目：没有任何目录被标记，插件日志里没有降级。
+
 ## Windows 安装包
 
 | 能力 | Windows ARM64 | Windows x64 | 验证入口 |
@@ -311,7 +360,7 @@ Core 6477e9a），Homebrew 的 Go 1.27.4。在宿主检出里运行 `internal/pr
 | 真实 go、gopls 流程 | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（`windows-11-arm`） | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（`windows-latest`） | `.github/workflows/ci.yml` 的 `commands` 任务跑 `scripts/test.mjs`，`LITHE_TEST_PLUGIN_DIR` 指向解压到带空格路径的 Windows 包 |
 | Delve 调试 | 不支持：Delve 上游没有 windows/arm64 后端，`scripts/test.mjs` 把 dlv 检查记为跳过 | [已通过原生 CI](https://github.com/Lithe-IDEA/lithe-plugin-go/actions/runs/43728078241)（托管安装和 `dlv dap` 端点公告） | 同上 |
 
-包里除了声明资源（清单、模板、图标），只有画设置预览的后端，所以 ARM64 与 x64 各有一份包，只有 `bin/backend.exe` 不同；Go、gopls 和 dlv 仍是用户自己的。
+包里除了声明资源（清单、模板、图标），只有画设置预览、标记嵌套模块目录的后端，所以 ARM64 与 x64 各有一份包，只有 `bin/backend.exe` 不同；Go、gopls 和 dlv 仍是用户自己的。
 Delve 目前不能在 Windows ARM64 上构建，所以那里没有调试；Delve 加入支持后，同一份包不改就能用，测试也会自动改为实际检查。
 `scripts/test.mjs` 按清单逐条运行版本探测、模型和依赖命令、构建、vet、过滤后的测试、`go env` 目录、gopls 和 dlv 的托管安装、
 gopls 的校验参数和 `dlv dap` 的端点公告。这些只是命令层面的自动化测试，不能代替 Lithe 里的验收，验证列保持 `pending`。

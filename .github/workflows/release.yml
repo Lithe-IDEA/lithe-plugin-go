@@ -94,7 +94,12 @@ jobs:
           # Lithe-core-rust#207), shipped in desktop 0.8.20. Older hosts reject
           # the new manifest field and stay on 1.3.1, so it is published as a
           # stable release.
-          PRERELEASE_TAGS: v0.0.1 v1.0.0
+          # v1.4.0 marks the directories of nested Go modules through
+          # workspace/setDirectoryMarks, which needs the workspace.directoryMarks
+          # permission (1lck/Lithe-IDEA#2480, Lithe-core-rust#215). No desktop
+          # release has it yet and older hosts reject the unknown permission, so
+          # it is published as a pre-release.
+          PRERELEASE_TAGS: v0.0.1 v1.0.0 v1.4.0
         run: |
           prerelease=false
           for tag in $PRERELEASE_TAGS; do

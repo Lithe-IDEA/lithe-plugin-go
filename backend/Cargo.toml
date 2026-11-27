@@ -1,8 +1,8 @@
 [package]
 name = "go-support-backend"
-description = "The Go Support plugin's backend: the previews its settings regions draw."
+description = "The Go Support plugin's backend: the previews its settings regions draw, and the Go module directories it marks."
 # Kept equal to the plugin's version; scripts/package.mjs refuses a mismatch.
-version = "1.3.2"
+version = "1.4.0"
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.87"
@@ -13,10 +13,10 @@ name = "backend"
 path = "src/main.rs"
 
 [dependencies]
-# The Rust plugin SDK has no release tag yet; this is Lithe-core-rust main with
-# the view width and the resize event (Lithe-core-rust#109) on top of the
-# plugin views contract (Lithe-core-rust#104).
-lithe-plugin-sdk = { git = "https://github.com/Lithe-IDEA/Lithe-core-rust", rev = "0b6da2725ded74de7c3b62b49d12c1947dc0a38a" }
+# The Rust plugin SDK has no release tag yet. This is the head of
+# Lithe-core-rust#215, which adds workspace/setDirectoryMarks to the SDK; it
+# moves to the Lithe-core-rust main commit once that pull request lands.
+lithe-plugin-sdk = { git = "https://github.com/Lithe-IDEA/Lithe-core-rust", rev = "914fed28dd0f39f4e2f699214cadedb593d4057f" }
 serde_json = "1"
 
 [profile.release]

@@ -2,7 +2,7 @@
   "schemaVersion": 0,
   "id": "io.github.lithe-idea.go-support",
   "displayName": "Go Support",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "pluginAPIVersion": 0,
   "requires": {
     "backend": 0,
@@ -32,12 +32,16 @@
     "languageServer.launch",
     "process.build",
     "project.generate",
-    "ui.contribute"
+    "ui.contribute",
+    "workspace.directoryMarks",
+    "workspace.metadata",
+    "workspace.search"
   ],
   "activationEvents": [
     "onBuildSystem:go",
     "onDebug:delve",
-    "onLanguage:go"
+    "onLanguage:go",
+    "onWorkspaceOpen"
   ],
   "settings": [
     {
