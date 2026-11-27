@@ -6,6 +6,11 @@
       "description": "读取模块、构建、检查、测试和运行时使用的 go 程序。留空表示使用 PATH 中的 go。",
       "placeholder": "自动：PATH 中的 go"
     },
+    "delveExecutable": {
+      "title": "Delve 程序",
+      "description": "调试使用的本机 Delve 程序。留空时先在 PATH 中查找 dlv，再查找插件记录的安装目录。",
+      "placeholder": "自动查找 dlv"
+    },
     "staticcheck": {
       "title": "Staticcheck 分析",
       "description": "把 staticcheck 的额外检查结果报告为诊断。大模块上会占用更多 CPU 和内存。"

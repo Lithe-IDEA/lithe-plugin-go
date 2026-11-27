@@ -87,7 +87,8 @@ gofumpt 设置立即生效，以及工作流结束后安装目录逐字节不变
 
 ## go-debug-delve
 
-**能力**：「调试」窗口里的 Go (Delve) 适配器。Lithe 启动在 Lithe 里安装时记下的或用户 `PATH` 里的 `dlv dap`，读到 Delve 在标准输出打印的
+**能力**：「调试」窗口里的 Go (Delve) 适配器。用户可以在 Go Support 插件设置里指定本机 Delve 程序，下次启动调试时读取。
+留空时，Lithe 先在 `PATH` 中查找 `dlv`，再查找插件记录的安装目录。显式路径无效时调试启动失败。Lithe 启动 Delve 后，读到标准输出打印的
 `DAP server listening at: <地址>` 后连接这个本机地址；在当前文件所在的包目录里构建并调试这个包（`dlvCwd` 和 `env.PWD` 绑定到 `target.directory`，`program` 是 `.`），
 程序的工作目录也是包目录（`cwd` 绑定到 `target.directory`，不再是调试引擎默认的工作区根目录）。打开的文件夹根目录不需要 `go.mod`，可以并排放多个模块；没有 `go.mod` 的目录以
 `GO111MODULE=auto` 构建目录里的全部文件。支持断点、单步、调用栈、变量和表达式求值，程序输出显示在调试控制台，程序结束后会话自动结束。

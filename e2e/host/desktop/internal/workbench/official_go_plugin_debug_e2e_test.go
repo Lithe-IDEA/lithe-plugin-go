@@ -1,6 +1,8 @@
 package workbench
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/1lck/Lithe-IDEA/desktop/internal/buildprocess"
 	"github.com/1lck/Lithe-IDEA/desktop/internal/core"
+	"github.com/1lck/Lithe-IDEA/desktop/internal/pluginsettings"
 )
 
 // goDebugWorkspace lays out a workspace like a course folder: the root has no
@@ -28,6 +31,82 @@ var goDebugWorkspace = map[string]string{
 	"lab-2/cmd/tool/main.go":      "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Tool\"\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
 	"scratch/main.go":             "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := greeting()\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
 	"scratch/greeting.go":         "package main\n\nfunc greeting() string { return \"Loose\" }\n",
+}
+
+// TestOfficialGoPluginDebugsWithConfiguredDelve uses Go 1.22.12 with Delve
+// 1.27.2 on PATH and the absolute path of Delve 1.23.1 outside PATH.
+func TestOfficialGoPluginDebugsWithConfiguredDelve(t *testing.T) {
+	compatible := os.Getenv("LITHE_TEST_COMPATIBLE_DELVE")
+	archive := os.Getenv("LITHE_TEST_GO_PLUGIN_ARCHIVE")
+	if compatible == "" || archive == "" {
+		t.Skip("set LITHE_TEST_GO_PLUGIN_ARCHIVE and LITHE_TEST_COMPATIBLE_DELVE")
+	}
+	t.Setenv("GOTOOLCHAIN", "go1.22.12")
+	versionCtx, cancelVersion := context.WithTimeout(context.Background(), time.Minute)
+	defer cancelVersion()
+	for _, check := range []struct {
+		program, want string
+	}{
+		{"go", "go version go1.22.12 "},
+		{"dlv", "Version: 1.27.2"},
+		{compatible, "Version: 1.23.1"},
+	} {
+		if out, err := exec.CommandContext(versionCtx, check.program, "version").CombinedOutput(); err != nil || !strings.Contains(string(out), check.want) {
+			t.Fatalf("%s version = %s, %v; want %s", check.program, out, err, check.want)
+		}
+	}
+
+	h := newHarness(t, &testKernel{Client: core.NewClient()})
+	previousGrace := buildprocess.StopGrace()
+	t.Cleanup(func() { buildprocess.SetStopGrace(previousGrace) })
+	h.app.refreshStopGrace()
+	awaitStateWithin(t, h, 20*time.Second, "Core's stop time", func() bool { return buildprocess.StopGrace() > 0 })
+	installed := installOfficialPluginArchive(t, h, archive, "io.github.lithe-idea.go-support")
+	before := packageDigest(t, installed)
+	h.app.reloadPluginLanguages()
+	root := t.TempDir()
+	writePluginFixture(t, root, map[string]string{
+		"go.mod":  "module example.com/delve\n\ngo 1.22.12\n",
+		"main.go": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Gopher\"\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n",
+	})
+	p := openHostedPanel(t, h, root)
+	source := filepath.Join(root, "main.go")
+	h.app.openFileAtPosition(p, source, 6, 0)
+	awaitStateWithin(t, h, 30*time.Second, "main.go to open", func() bool {
+		doc := p.selectedDocument(p.docs.group)
+		return doc != nil && samePath(doc.path, source)
+	})
+	defer h.app.stopDebug(p)
+	clickNamedWithoutSettling(t, h, h.app.text.Debug.Start)
+	awaitStateWithin(t, h, time.Minute, "the Delve compatibility failure", func() bool {
+		return strings.Contains(p.debug.failure+"\n"+strings.Join(p.debug.output, "\n"),
+			"Go version go1.22.12 is too old for this version of Delve")
+	})
+	h.app.stopDebug(p)
+	awaitStateWithin(t, h, 30*time.Second, "the failed session to stop", func() bool {
+		return p.debug.activeSession() == nil && len(debugBinaries(t, root)) == 0
+	})
+
+	settings := pluginsettings.New(h.app.kernel, h.store.Dir())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	snapshot, err := settings.Load(ctx, p.debug.adapters[0].Manifest, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := json.Marshal(compatible)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := settings.Save(ctx, snapshot, "global", []core.PluginSettingEdit{{ID: "delveExecutable", Value: value}}, nil)
+	if err != nil || !saved.Committed {
+		t.Fatalf("save global Delve setting: %+v, %v", saved, err)
+	}
+	debugGoProgram(t, h, p, root, goDebugProgram{source: "main.go", line: 7, local: `"Gopher"`})
+	h.app.closeProject()
+	awaitStateWithin(t, h, 30*time.Second, "the closed project", func() bool { return h.app.project == nil })
+	h.settle()
+	assertPackageUnchanged(t, installed, before)
 }
 
 // goDebugProgram is one program of goDebugWorkspace the test debugs.
