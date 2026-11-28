@@ -67,7 +67,7 @@ func TestOfficialGoPluginMarksNestedModuleDirectories(t *testing.T) {
 		}
 	}
 
-	// Opening the repository also detects a Go Modules instance for each go.mod and syncs it;
+	// Opening the repository also detects and syncs each eligible Go Modules instance;
 	// a running sync would make closing the project ask first.
 	awaitStateWithin(t, h, 2*time.Minute, "the Go Modules syncs to end", func() bool {
 		if !p.build.loaded || p.build.loading {
@@ -80,6 +80,16 @@ func TestOfficialGoPluginMarksNestedModuleDirectories(t *testing.T) {
 		}
 		return true
 	})
+	var roots []string
+	for _, instance := range p.build.instances {
+		if instance.PluginID == id && instance.BuildSystemID == "go" {
+			roots = append(roots, instance.Root)
+		}
+	}
+	slices.Sort(roots)
+	if !slices.Equal(roots, []string{".", "services/api", "tools"}) {
+		t.Fatalf("Go Modules detected roots %q", roots)
+	}
 	h.app.closeProject()
 	awaitStateWithin(t, h, 30*time.Second, "the closed project", func() bool { return h.app.project == nil })
 	h.settle()

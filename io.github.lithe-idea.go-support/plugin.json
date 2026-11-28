@@ -236,7 +236,8 @@
       "detection": {
         "markers": [
           "go.mod"
-        ]
+        ],
+        "ignoredPaths": ["testdata/", "vendor/", "_*/"]
       },
       "invocation": {
         "executables": [
