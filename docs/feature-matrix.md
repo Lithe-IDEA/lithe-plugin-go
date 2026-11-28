@@ -29,7 +29,9 @@
 
 ## go-support-plugin
 
-**能力**：用用户自己的 `gopls` 提供代码智能，缺少 gopls 时可以在插件详情的能力卡片上安装；用声明式 `buildSystems` 识别 Go 模块，在构建窗口里列出包，
+2026-11-28 在 Windows x64 用本插件清单调用 [Core #218](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/218) 的构建检测。六个含 `go.mod` 的目录默认只识别根目录、`tools` 和 `services/api`。工作区加上 `!testdata/` 后，恢复识别 `testdata/fixture`，共四个。此检查覆盖实例识别，桌面同步和设置界面仍待验收。
+
+**能力**：用用户自己的 `gopls` 提供代码智能，缺少 gopls 时可以在插件详情的能力卡片上安装；用声明式 `buildSystems` 识别 Go 模块。默认跳过 `testdata/`、`vendor/` 和 `_*/`。工作区可用 `!testdata/` 恢复对应目录。插件在构建窗口里列出包，
 运行 `go build`、`go vet`、`go test` 和 `go run`，列出模块依赖；插件设置调整 `go` 路径和 gopls 选项；
 `indexingExclusions` 让宿主把排除在索引之外的目录写进 gopls 的 `directoryFilters`。
 没有设置 `go` 路径时，构建用 `toolDefinitions` 里的 `go` 工具定义解析 Go：项目固定的 Go、全局默认、`GOROOT`、

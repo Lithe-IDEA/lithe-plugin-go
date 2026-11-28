@@ -44,13 +44,14 @@ gopls、go 和 dlv 仍然用你电脑上的。
 > （[1lck/Lithe-IDEA#2480](https://github.com/1lck/Lithe-IDEA/pull/2480)，固定了
 > [Lithe-core-rust#215](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/215) 的 Core），还没有桌面端版本包含它。
 > 较早的桌面端不认识新增的 `workspace.directoryMarks` 权限，会拒绝安装 1.4.0，所以 1.4.0 作为预发布版本发布，不进 Lithe Store。
+> 本分支的模块检测还需要桌面端包含 [Core #218](https://github.com/Lithe-IDEA/Lithe-core-rust/pull/218)。旧宿主会拒绝含 `detection.ignoredPaths` 的清单。正式插件包应等兼容的桌面版发布后再发。
 
 ## 功能
 
 | 功能 | 说明 |
 | --- | --- |
 | 代码智能 | 补全、跳转定义、悬停、诊断、格式化，由 `gopls` 提供 |
-| 识别模块 | 含 `go.mod` 的目录是构建根；`go list -json ./...` 的结果组成模块和包 |
+| 识别模块 | 含 `go.mod` 的目录是构建根。默认跳过 `testdata/`、`vendor/` 和 `_*/`，可在 Build 忽略路径里用 `!testdata/` 恢复对应目录。`go list -json ./...` 的结果组成模块和包 |
 | 构建 | Build（`go build ./...`）作用于模块；Vet（`go vet`）可作用于模块或单个包 |
 | 运行 | 每个 `main` 包在构建窗口里有「运行 <包名>」按钮，执行 `go run <导入路径>`，输出显示在构建输出里 |
 | 测试 | `go test` 作用于模块或单个包，可用 `-run` 只跑一个测试；输出显示在构建输出里，插件不提供测试报告文件 |
