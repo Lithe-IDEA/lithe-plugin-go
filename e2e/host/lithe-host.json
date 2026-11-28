@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/1lck/Lithe-IDEA.git",
-  "revision": "d7c1372bdc41de5531a9f30dd5924a51d03e331d",
+  "revision": "b1c781c9c304b391db1b2c503f30feceb054b7d7",
   "packages": {
     "./internal/projectgen": "^TestGoPlugin",
     "./internal/workbench": "^TestOfficialGoPlugin(BuildsAndServesAModule|DebugsEachProjectOfAWorkspaceWithDelve|DebugsWithConfiguredDelve|RunsGoBuildAndGoTestConfigurations|DrawsItsSettingsRegions|MarksNestedModuleDirectories)$"
